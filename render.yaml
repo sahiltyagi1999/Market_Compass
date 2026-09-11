@@ -17,8 +17,6 @@ services:
         value: NSE_INDEX|Nifty 50
       - key: UPSTOX_VIX_KEY
         value: NSE_INDEX|India VIX
-      - key: COINGECKO_DEMO_API_KEY
-        sync: false
       - key: OPENAI_API_KEY
         sync: false
       - key: OPENAI_MODEL
