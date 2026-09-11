@@ -117,4 +117,21 @@ describe('dashboard scoring', () => {
 
     expect(withAi.score).toBe(withoutAi.score);
   });
+
+  it('does not let inconsistent global market-cap windows change the directional score', () => {
+    const base = {
+      btcPrice: 78_000,
+      btcChangePct: 0.2,
+      ethChangePct: 0.1,
+      breadthPositiveRatio: 0.5,
+      btcDominance: 57,
+      fearGreed: 50
+    };
+    const sources = [{ name: 'market data', status: 'live' as const, message: 'ok' }];
+
+    const positiveWindow = scoreCrypto({ ...base, marketCapChangePct: 3 }, sources);
+    const negativeWindow = scoreCrypto({ ...base, marketCapChangePct: -3 }, sources);
+
+    expect(positiveWindow.score).toBe(negativeWindow.score);
+  });
 });

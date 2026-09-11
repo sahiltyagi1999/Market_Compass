@@ -351,7 +351,6 @@ export function scoreCrypto(snapshot: CryptoSnapshot, sources: SourceStatus[]): 
     snapshot.technical?.recentMomentumPct == null ? undefined : scaled(snapshot.technical.recentMomentumPct, 3)
   ];
   const positioningParts = [
-    snapshot.marketCapChangePct == null ? undefined : scaled(snapshot.marketCapChangePct, 3),
     snapshot.breadthPositiveRatio == null ? undefined : scaled(snapshot.breadthPositiveRatio - 0.5, 0.35),
     snapshot.btcDominance == null ? undefined : scaled(57 - snapshot.btcDominance, 6)
   ];
@@ -372,7 +371,7 @@ export function scoreCrypto(snapshot: CryptoSnapshot, sources: SourceStatus[]): 
     analyst('technical', 'Technical Analyst', technicalScore == null ? undefined : technicalScore * 100, 20 + technicalParts.filter((value) => value != null).length * 12,
       technicalScore == null ? 'BTC candles unavailable.' : `BTC/ETH momentum, RSI, EMA and MACD combine to ${Math.round(technicalScore * 100)}.`),
     analyst('positioning', 'Market Breadth', positioningScore == null ? undefined : positioningScore * 100, 25 + positioningParts.filter((value) => value != null).length * 20,
-      positioningScore == null ? 'Broad-market participation unavailable.' : `Market cap, top-10 breadth and dominance combine to ${Math.round(positioningScore * 100)}.`),
+      positioningScore == null ? 'Broad-market participation unavailable.' : `Fixed-basket breadth and BTC dominance combine to ${Math.round(positioningScore * 100)}; global market cap is informational only.`),
     analyst('sentiment', 'Sentiment Analyst', sentimentScore == null ? undefined : sentimentScore * 100, average([snapshot.sentiment?.confidence, snapshot.fearGreed == null ? undefined : 75]) ?? 0,
       sentimentScore == null ? 'News and sentiment gauges unavailable.' : `Rules-based headline tone and Fear & Greed combine to ${Math.round(sentimentScore * 100)}; AI is explanation-only.`),
     analyst('risk', 'Risk Manager', riskScore == null ? undefined : riskScore * 100, 35 + riskParts.filter((value) => value != null).length * 22,
@@ -384,7 +383,7 @@ export function scoreCrypto(snapshot: CryptoSnapshot, sources: SourceStatus[]): 
   if (snapshot.ethChangePct != null) items.push(evidence('eth', 'ETH 24h move', pct(snapshot.ethChangePct), scaled(snapshot.ethChangePct, 4), 10, 'Ethereum confirms whether risk appetite extends beyond BTC.'));
   if (snapshot.technical?.emaSpreadPct != null) items.push(evidence('ema', 'BTC EMA 12/26', pct(snapshot.technical.emaSpreadPct), scaled(snapshot.technical.emaSpreadPct, 1.2), 12, 'Fast-versus-slow EMA measures the hourly trend.'));
   if (snapshot.technical?.rsi != null) items.push(evidence('rsi', 'BTC hourly RSI', snapshot.technical.rsi.toFixed(1), scaled(snapshot.technical.rsi - 50, 20), 8, 'Hourly RSI measures current momentum regime.'));
-  if (snapshot.marketCapChangePct != null) items.push(evidence('mcap', 'Total market cap', pct(snapshot.marketCapChangePct), scaled(snapshot.marketCapChangePct, 3), 14, 'Total market-cap change is a broad trend check.'));
+  if (snapshot.marketCapChangePct != null) items.push(evidence('mcap', 'Total market cap', pct(snapshot.marketCapChangePct), 0, 0, 'Informational only because provider windows are not consistent enough for directional scoring.'));
   if (breadthPct != null) items.push(evidence('breadth', 'Top-10 breadth', `${breadthPct.toFixed(0)}% green`, scaled(snapshot.breadthPositiveRatio! - 0.5, 0.35), 14, 'Breadth tests whether the move is widespread.'));
   const usesMoodProxy = snapshot.fearGreedLabel === 'Market data proxy';
   const moodLabel = usesMoodProxy ? 'Market mood' : 'Fear & Greed';
@@ -395,7 +394,7 @@ export function scoreCrypto(snapshot: CryptoSnapshot, sources: SourceStatus[]): 
     snapshot.btcChangePct == null ? null : metric('BTC 24h', pct(snapshot.btcChangePct), 'leader momentum', toneFromSigned(snapshot.btcChangePct)),
     snapshot.technical?.rsi == null ? null : metric('BTC RSI 14', snapshot.technical.rsi.toFixed(1), `${snapshot.technical.candleCount} hourly candles`, snapshot.technical.rsi >= 55 ? 'positive' : snapshot.technical.rsi <= 45 ? 'negative' : 'neutral'),
     snapshot.technical?.emaSpreadPct == null ? null : metric('EMA trend', pct(snapshot.technical.emaSpreadPct), '12 EMA vs 26 EMA', toneFromSigned(snapshot.technical.emaSpreadPct)),
-    snapshot.marketCapChangePct == null ? null : metric('Market cap', pct(snapshot.marketCapChangePct), 'global 24h change', toneFromSigned(snapshot.marketCapChangePct)),
+    snapshot.marketCapChangePct == null ? null : metric('Market cap', pct(snapshot.marketCapChangePct), 'informational; excluded from score', toneFromSigned(snapshot.marketCapChangePct)),
     breadthPct == null ? null : metric('Top-10 breadth', `${breadthPct.toFixed(0)}%`, 'large caps in green', breadthPct >= 60 ? 'positive' : breadthPct <= 40 ? 'negative' : 'neutral'),
     snapshot.fearGreed == null ? null : metric(moodLabel, String(snapshot.fearGreed), snapshot.fearGreedLabel || 'market mood', snapshot.fearGreed >= 55 ? 'positive' : snapshot.fearGreed <= 45 ? 'negative' : 'neutral'),
     snapshot.sentiment == null ? null : metric('News pulse', `${snapshot.sentiment.deterministicScore >= 0 ? '+' : ''}${snapshot.sentiment.deterministicScore}`, `rules · ${snapshot.sentiment.positive}/${snapshot.sentiment.negative} positive/negative`, toneFromSigned(snapshot.sentiment.deterministicScore)),
