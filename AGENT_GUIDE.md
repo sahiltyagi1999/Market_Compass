@@ -31,8 +31,8 @@ snapshots or silently replace a failed source with made-up values.
 ## Data policy
 
 - Nifty market data: Upstox Analytics Token
-- Crypto market data: Binance and CoinGecko
-- Headlines: Google News RSS; Upstox news is added when its token exists
+- Crypto market data: Binance and CoinGecko, with CoinLore global and Binance breadth fallbacks
+- Headlines: Yahoo Finance, Economic Times, CoinDesk and Cointelegraph RSS; Google and Upstox news are supplemental
 - Crypto sentiment: Alternative.me Fear & Greed
 - A news-only Nifty response must remain `UNAVAILABLE`; headlines cannot issue a
   standalone options call.

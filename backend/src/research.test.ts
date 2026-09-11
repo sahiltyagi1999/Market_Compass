@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { enrichNewsWithAi } from './aiNews.js';
 import { calculateTechnicals } from './indicators.js';
+import { parseRssNews } from './providers.js';
 import { analyseHeadlines, scoreHeadline } from './sentiment.js';
 
 describe('research inputs', () => {
@@ -35,6 +36,21 @@ describe('research inputs', () => {
     expect(enriched.analysis).toBeUndefined();
     expect(enriched.source.status).toBe('missing');
     expect(enriched.source.optional).toBe(true);
+  });
+
+  it('parses direct RSS fallback headlines and decodes entities', () => {
+    const headlines = parseRssNews(`
+      <rss><channel><item>
+        <title><![CDATA[Bitcoin &amp; markets rebound]]></title>
+        <link>https://example.com/rebound</link>
+        <pubDate>Fri, 11 Sep 2026 10:00:00 GMT</pubDate>
+      </item></channel></rss>
+    `, 'Fallback Desk');
+
+    expect(headlines).toHaveLength(1);
+    expect(headlines[0].title).toBe('Bitcoin & markets rebound');
+    expect(headlines[0].source).toBe('Fallback Desk');
+    expect(headlines[0].url).toBe('https://example.com/rebound');
   });
 
   it('detects a rising EMA and RSI regime from candles', () => {

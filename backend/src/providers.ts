@@ -40,11 +40,22 @@ type CoinGeckoCoin = {
 };
 
 type BinanceTicker = {
+  symbol?: string;
   lastPrice?: string;
   bidPrice?: string;
   askPrice?: string;
   priceChangePercent?: string;
   closeTime?: number;
+};
+
+type CoinLoreGlobal = {
+  mcap_change?: string | number;
+  btc_d?: string | number;
+};
+
+type NewsBundle = {
+  headlines: RawHeadline[];
+  statuses: SourceStatus[];
 };
 
 type FearGreedResponse = {
@@ -154,6 +165,60 @@ function xmlTag(item: string, tag: string) {
   return match ? decodeXml(match[1]) : '';
 }
 
+export function parseRssNews(xml: string, fallbackSource: string): RawHeadline[] {
+  return [...xml.matchAll(/<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi)].map((match) => {
+    const item = match[1];
+    const published = xmlTag(item, 'pubDate') || xmlTag(item, 'dc:date');
+    const date = new Date(published || Date.now());
+    return {
+      title: xmlTag(item, 'title').replace(/<[^>]+>/g, '').trim(),
+      source: xmlTag(item, 'source') || fallbackSource,
+      url: xmlTag(item, 'link'),
+      publishedAt: Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString()
+    };
+  }).filter((item) => item.title && item.url);
+}
+
+async function fetchRssNews(url: string, source: string) {
+  return parseRssNews(await fetchText(url, 5 * 60 * 1000), source);
+}
+
+async function fetchNewsBundle(feeds: Array<{ name: string; loader: () => Promise<RawHeadline[]> }>): Promise<NewsBundle> {
+  const settled = await Promise.allSettled(feeds.map((feed) => feed.loader()));
+  const statuses: SourceStatus[] = [];
+  const groups: RawHeadline[][] = [];
+  settled.forEach((result, index) => {
+    const name = feeds[index].name;
+    if (result.status === 'fulfilled' && result.value.length) {
+      groups.push(result.value);
+      statuses.push({ name, status: 'live', message: `${result.value.length} headlines loaded.`, optional: true });
+    } else {
+      statuses.push({
+        name,
+        status: result.status === 'fulfilled' ? 'missing' : 'error',
+        message: result.status === 'fulfilled' ? 'No current headlines returned.' : errorMessage(result.reason, 'Feed failed.'),
+        optional: true
+      });
+    }
+  });
+
+  const cutoff = Date.now() - 4 * 24 * 60 * 60 * 1000;
+  const headlines: RawHeadline[] = [];
+  const seen = new Set<string>();
+  const longest = Math.max(0, ...groups.map((group) => group.length));
+  for (let index = 0; index < longest && headlines.length < 45; index += 1) {
+    for (const group of groups) {
+      const item = group[index];
+      if (!item || new Date(item.publishedAt).getTime() < cutoff) continue;
+      const key = item.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 120);
+      if (!key || seen.has(key)) continue;
+      seen.add(key);
+      headlines.push(item);
+    }
+  }
+  return { headlines, statuses };
+}
+
 async function fetchGoogleNews(query: string, locale: 'IN' | 'US'): Promise<RawHeadline[]> {
   const language = locale === 'IN' ? 'en-IN' : 'en-US';
   const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=${language}&gl=${locale}&ceid=${locale}:en`;
@@ -170,6 +235,23 @@ async function fetchGoogleNews(query: string, locale: 'IN' | 'US'): Promise<RawH
       publishedAt: new Date(xmlTag(item, 'pubDate') || Date.now()).toISOString()
     };
   }).filter((item) => item.title && item.url);
+}
+
+function fetchNiftyNews() {
+  return fetchNewsBundle([
+    { name: 'Yahoo Finance NIFTY RSS', loader: () => fetchRssNews('https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5ENSEI&region=IN&lang=en-IN', 'Yahoo Finance') },
+    { name: 'Economic Times Markets RSS', loader: () => fetchRssNews('https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms', 'Economic Times') },
+    { name: 'Google News RSS', loader: () => fetchGoogleNews('(NIFTY 50 OR Sensex OR NSE OR India VIX) when:2d', 'IN') }
+  ]);
+}
+
+function fetchCryptoNews() {
+  return fetchNewsBundle([
+    { name: 'Yahoo Finance Bitcoin RSS', loader: () => fetchRssNews('https://feeds.finance.yahoo.com/rss/2.0/headline?s=BTC-USD&region=US&lang=en-US', 'Yahoo Finance') },
+    { name: 'CoinDesk RSS', loader: () => fetchRssNews('https://www.coindesk.com/arc/outboundfeeds/rss/', 'CoinDesk') },
+    { name: 'Cointelegraph RSS', loader: () => fetchRssNews('https://cointelegraph.com/rss', 'Cointelegraph') },
+    { name: 'Google News RSS', loader: () => fetchGoogleNews('(Bitcoin OR Ethereum OR cryptocurrency) when:2d', 'US') }
+  ]);
 }
 
 async function fetchUpstoxNews(token: string, instrumentKey: string): Promise<RawHeadline[]> {
@@ -301,28 +383,26 @@ async function collectNiftyCard() {
   const vixKey = process.env.UPSTOX_VIX_KEY || 'NSE_INDEX|India VIX';
   const sources: SourceStatus[] = [];
   const snapshot: NiftySnapshot = {};
-  const googleNewsPromise = fetchGoogleNews('(NIFTY 50 OR Sensex OR NSE OR India VIX) when:2d', 'IN');
+  const newsPromise = fetchNiftyNews();
 
   if (!token) {
     sources.push({ name: 'Upstox market desk', status: 'missing', message: 'Add UPSTOX_ANALYTICS_TOKEN for price, candles, VIX and options.' });
-    try {
-      const news = await googleNewsPromise;
-      snapshot.sentiment = analyseHeadlines(news);
+    const news = await newsPromise;
+    sources.push(...news.statuses);
+    if (news.headlines.length) {
+      snapshot.sentiment = analyseHeadlines(news.headlines);
       snapshot.updatedAt = new Date().toISOString();
-      sources.push({ name: 'Google News RSS', status: 'live', message: `${news.length} recent NIFTY/India-market headlines loaded.` });
       await applyAiNews('nifty', snapshot, sources, { marketData: 'unavailable', deterministicNewsScore: snapshot.sentiment.score });
-    } catch (error) {
-      sources.push({ name: 'Google News RSS', status: 'error', message: errorMessage(error, 'News fetch failed.') });
-    }
+    } else await applyAiNews('nifty', snapshot, sources, { marketData: 'unavailable' });
     return scoreNifty(snapshot, sources);
   }
 
-  const [niftyQuote, vixQuote, optionChain, candles, googleNews, upstoxNews] = await Promise.allSettled([
+  const [niftyQuote, vixQuote, optionChain, candles, news, upstoxNews] = await Promise.allSettled([
     fetchUpstoxQuote(token, niftyKey),
     fetchUpstoxQuote(token, vixKey),
     fetchUpstoxOptionSnapshot(token, niftyKey),
     fetchUpstoxCandles(token, niftyKey),
-    googleNewsPromise,
+    newsPromise,
     fetchUpstoxNews(token, niftyKey)
   ]);
 
@@ -366,14 +446,14 @@ async function collectNiftyCard() {
   }
 
   const rawNews: RawHeadline[] = [];
-  if (googleNews.status === 'fulfilled') {
-    rawNews.push(...googleNews.value);
-    sources.push({ name: 'Google News RSS', status: 'live', message: `${googleNews.value.length} broad market headlines loaded.` });
-  } else sources.push({ name: 'Google News RSS', status: 'error', message: errorMessage(googleNews.reason, 'News failed.') });
+  if (news.status === 'fulfilled') {
+    rawNews.push(...news.value.headlines);
+    sources.push(...news.value.statuses);
+  } else sources.push({ name: 'Market news feeds', status: 'error', message: errorMessage(news.reason, 'News failed.'), optional: true });
   if (upstoxNews.status === 'fulfilled') {
     rawNews.push(...upstoxNews.value);
-    sources.push({ name: 'Upstox instrument news', status: 'live', message: `${upstoxNews.value.length} token-backed headlines loaded.` });
-  } else sources.push({ name: 'Upstox instrument news', status: 'error', message: errorMessage(upstoxNews.reason, 'News failed.') });
+    sources.push({ name: 'Upstox instrument news', status: 'live', message: `${upstoxNews.value.length} token-backed headlines loaded.`, optional: true });
+  } else sources.push({ name: 'Upstox instrument news', status: 'error', message: errorMessage(upstoxNews.reason, 'News failed.'), optional: true });
   if (rawNews.length) snapshot.sentiment = analyseHeadlines(rawNews);
   await applyAiNews('nifty', snapshot, sources, {
     spot: snapshot.spot,
@@ -419,20 +499,55 @@ function coingeckoHeaders() {
   return apiKey ? { 'x-cg-demo-api-key': apiKey } : undefined;
 }
 
+async function fetchCryptoGlobal() {
+  try {
+    const body = await fetchJson<CoinGeckoGlobal>('https://api.coingecko.com/api/v3/global', { headers: coingeckoHeaders() }, 2 * 60 * 1000);
+    const marketCapChangePct = toNumber(body.data?.market_cap_change_percentage_24h_usd);
+    const btcDominance = toNumber(body.data?.market_cap_percentage?.btc);
+    if (marketCapChangePct == null && btcDominance == null) throw new Error('CoinGecko returned no global metrics.');
+    return { marketCapChangePct, btcDominance, source: 'CoinGecko global' };
+  } catch {
+    const body = await fetchJson<CoinLoreGlobal[]>('https://api.coinlore.net/api/global/', undefined, 2 * 60 * 1000);
+    const global = body[0];
+    if (!global) throw new Error('CoinLore returned no global metrics.');
+    return {
+      marketCapChangePct: toNumber(global.mcap_change),
+      btcDominance: toNumber(global.btc_d),
+      source: 'CoinLore global fallback'
+    };
+  }
+}
+
+async function fetchCryptoBreadth() {
+  try {
+    const body = await fetchJson<CoinGeckoCoin[]>(
+      'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false&price_change_percentage=24h',
+      { headers: coingeckoHeaders() },
+      2 * 60 * 1000
+    );
+    const moves = body.map((coin) => toNumber(coin.price_change_percentage_24h_in_currency)).filter((value): value is number => value != null);
+    if (!moves.length) throw new Error('CoinGecko returned no breadth metrics.');
+    return { moves, source: 'CoinGecko breadth' };
+  } catch {
+    const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT', 'DOGEUSDT', 'ADAUSDT', 'TRXUSDT', 'AVAXUSDT', 'LINKUSDT'];
+    const url = `https://data-api.binance.vision/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symbols))}`;
+    const body = await fetchJson<BinanceTicker[]>(url, undefined, 60_000);
+    const moves = body.map((ticker) => toNumber(ticker.priceChangePercent)).filter((value): value is number => value != null);
+    if (!moves.length) throw new Error('Binance returned no breadth metrics.');
+    return { moves, source: 'Binance top-10 breadth fallback' };
+  }
+}
+
 async function collectCryptoCard() {
   const sources: SourceStatus[] = [];
   const snapshot: CryptoSnapshot = {};
   const [tickers, global, topCoins, candles, fearGreed, news] = await Promise.allSettled([
     Promise.all([fetchBinanceTicker('BTCUSDT'), fetchBinanceTicker('ETHUSDT')]),
-    fetchJson<CoinGeckoGlobal>('https://api.coingecko.com/api/v3/global', { headers: coingeckoHeaders() }, 2 * 60 * 1000),
-    fetchJson<CoinGeckoCoin[]>(
-      'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false&price_change_percentage=24h',
-      { headers: coingeckoHeaders() },
-      2 * 60 * 1000
-    ),
+    fetchCryptoGlobal(),
+    fetchCryptoBreadth(),
     fetchBinanceCandles(),
     fetchJson<FearGreedResponse>('https://api.alternative.me/fng/?limit=1&format=json', undefined, 10 * 60 * 1000),
-    fetchGoogleNews('(Bitcoin OR Ethereum OR cryptocurrency) when:2d', 'US')
+    fetchCryptoNews()
   ]);
 
   if (tickers.status === 'fulfilled') {
@@ -448,15 +563,15 @@ async function collectCryptoCard() {
   } else sources.push({ name: 'Binance public tickers', status: 'error', message: errorMessage(tickers.reason, 'Ticker fetch failed.') });
 
   if (global.status === 'fulfilled') {
-    snapshot.marketCapChangePct = toNumber(global.value.data?.market_cap_change_percentage_24h_usd);
-    snapshot.btcDominance = toNumber(global.value.data?.market_cap_percentage?.btc);
-    sources.push({ name: 'CoinGecko global', status: 'live', message: 'Market cap and BTC dominance loaded.' });
+    snapshot.marketCapChangePct = global.value.marketCapChangePct;
+    snapshot.btcDominance = global.value.btcDominance;
+    sources.push({ name: global.value.source, status: 'live', message: 'Market cap and BTC dominance loaded.' });
   } else sources.push({ name: 'CoinGecko global', status: 'error', message: errorMessage(global.reason, 'Global data failed.') });
 
   if (topCoins.status === 'fulfilled') {
-    const moves = topCoins.value.map((coin) => toNumber(coin.price_change_percentage_24h_in_currency)).filter((value): value is number => value != null);
+    const moves = topCoins.value.moves;
     if (moves.length) snapshot.breadthPositiveRatio = moves.filter((value) => value > 0).length / moves.length;
-    sources.push({ name: 'CoinGecko breadth', status: 'live', message: `${moves.length} large-cap assets analysed.` });
+    sources.push({ name: topCoins.value.source, status: 'live', message: `${moves.length} large-cap assets analysed.` });
   } else sources.push({ name: 'CoinGecko breadth', status: 'error', message: errorMessage(topCoins.reason, 'Breadth failed.') });
 
   if (candles.status === 'fulfilled' && candles.value.length) {
@@ -467,13 +582,13 @@ async function collectCryptoCard() {
   if (fearGreed.status === 'fulfilled') {
     snapshot.fearGreed = toNumber(fearGreed.value.data?.[0]?.value);
     snapshot.fearGreedLabel = fearGreed.value.data?.[0]?.value_classification;
-    sources.push({ name: 'Alternative.me Fear & Greed', status: 'live', message: 'Keyless sentiment gauge loaded.' });
-  } else sources.push({ name: 'Alternative.me Fear & Greed', status: 'error', message: errorMessage(fearGreed.reason, 'Sentiment gauge failed.') });
+    sources.push({ name: 'Alternative.me Fear & Greed', status: 'live', message: 'Keyless sentiment gauge loaded.', optional: true });
+  } else sources.push({ name: 'Alternative.me Fear & Greed', status: 'error', message: errorMessage(fearGreed.reason, 'Sentiment gauge failed.'), optional: true });
 
   if (news.status === 'fulfilled') {
-    snapshot.sentiment = analyseHeadlines(news.value);
-    sources.push({ name: 'Google News RSS', status: 'live', message: `${news.value.length} recent crypto headlines loaded.` });
-  } else sources.push({ name: 'Google News RSS', status: 'error', message: errorMessage(news.reason, 'News failed.') });
+    if (news.value.headlines.length) snapshot.sentiment = analyseHeadlines(news.value.headlines);
+    sources.push(...news.value.statuses);
+  } else sources.push({ name: 'Crypto news feeds', status: 'error', message: errorMessage(news.reason, 'News failed.'), optional: true });
 
   await applyAiNews('crypto', snapshot, sources, {
     btcPrice: snapshot.btcPrice,
