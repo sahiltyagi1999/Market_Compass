@@ -171,7 +171,7 @@ export function parseRssNews(xml: string, fallbackSource: string): RawHeadline[]
     const published = xmlTag(item, 'pubDate') || xmlTag(item, 'dc:date');
     const date = new Date(published || Date.now());
     return {
-      title: xmlTag(item, 'title').replace(/<[^>]+>/g, '').trim(),
+      title: xmlTag(item, 'title').replace(/\]\]>$/, '').replace(/<[^>]+>/g, '').trim(),
       source: xmlTag(item, 'source') || fallbackSource,
       url: xmlTag(item, 'link'),
       publishedAt: Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString()
@@ -183,15 +183,34 @@ async function fetchRssNews(url: string, source: string) {
   return parseRssNews(await fetchText(url, 5 * 60 * 1000), source);
 }
 
-async function fetchNewsBundle(feeds: Array<{ name: string; loader: () => Promise<RawHeadline[]> }>): Promise<NewsBundle> {
+export function isNiftyHeadlineRelevant(title: string) {
+  return /\b(nifty(?:\s*50)?|sensex|india vix|bank nifty|nse|bse|indian (?:shares?|stocks?|equities|equity|markets?)|india(?:'s)? (?:stock|share|equity|financial) market|rupee|reserve bank of india|rbi|sebi|foreign (?:portfolio )?investors?|fpis?|fiis?|federal reserve|fed (?:chair|rates?|rate cut|rate hike)|crude oil|brent|us tariffs?)\b/i.test(title);
+}
+
+export function isCryptoHeadlineRelevant(title: string) {
+  return /\b(bitcoin|btc|ethereum|ether|eth|crypto(?:currency|currencies)?|blockchain|digital assets?|stablecoins?|coinbase|binance|solana|xrp|dogecoin|crypto miner|bitcoin miner|clarity act)\b/i.test(title);
+}
+
+async function fetchNewsBundle(
+  feeds: Array<{ name: string; loader: () => Promise<RawHeadline[]> }>,
+  isRelevant: (title: string) => boolean
+): Promise<NewsBundle> {
   const settled = await Promise.allSettled(feeds.map((feed) => feed.loader()));
   const statuses: SourceStatus[] = [];
   const groups: RawHeadline[][] = [];
   settled.forEach((result, index) => {
     const name = feeds[index].name;
-    if (result.status === 'fulfilled' && result.value.length) {
-      groups.push(result.value);
-      statuses.push({ name, status: 'live', message: `${result.value.length} headlines loaded.`, optional: true });
+    const relevant = result.status === 'fulfilled'
+      ? result.value.filter((item) => isRelevant(item.title))
+      : [];
+    if (relevant.length) {
+      groups.push(relevant);
+      statuses.push({
+        name,
+        status: 'live',
+        message: `${relevant.length} relevant headlines selected from ${result.status === 'fulfilled' ? result.value.length : 0}.`,
+        optional: true
+      });
     } else {
       statuses.push({
         name,
@@ -242,7 +261,7 @@ function fetchNiftyNews() {
     { name: 'Yahoo Finance NIFTY RSS', loader: () => fetchRssNews('https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5ENSEI&region=IN&lang=en-IN', 'Yahoo Finance') },
     { name: 'Economic Times Markets RSS', loader: () => fetchRssNews('https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms', 'Economic Times') },
     { name: 'Google News RSS', loader: () => fetchGoogleNews('(NIFTY 50 OR Sensex OR NSE OR India VIX) when:2d', 'IN') }
-  ]);
+  ], isNiftyHeadlineRelevant);
 }
 
 function fetchCryptoNews() {
@@ -251,7 +270,7 @@ function fetchCryptoNews() {
     { name: 'CoinDesk RSS', loader: () => fetchRssNews('https://www.coindesk.com/arc/outboundfeeds/rss/', 'CoinDesk') },
     { name: 'Cointelegraph RSS', loader: () => fetchRssNews('https://cointelegraph.com/rss', 'Cointelegraph') },
     { name: 'Google News RSS', loader: () => fetchGoogleNews('(Bitcoin OR Ethereum OR cryptocurrency) when:2d', 'US') }
-  ]);
+  ], isCryptoHeadlineRelevant);
 }
 
 async function fetchUpstoxNews(token: string, instrumentKey: string): Promise<RawHeadline[]> {

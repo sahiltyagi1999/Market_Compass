@@ -120,7 +120,7 @@ export async function enrichNewsWithAi(
   sentiment: SentimentSnapshot,
   marketContext: unknown
 ): Promise<EnrichmentResult> {
-  const apiKey = process.env.OPENAI_API_KEY;
+  const apiKey = process.env.OPENAI_API_KEY?.trim();
   const model = process.env.OPENAI_MODEL || 'gpt-5-mini';
   if (!apiKey) {
     return {
@@ -129,6 +129,17 @@ export async function enrichNewsWithAi(
         name: 'OpenAI news analyst',
         status: 'missing',
         message: 'Optional: add OPENAI_API_KEY for semantic headline analysis.',
+        optional: true
+      }
+    };
+  }
+  if (!apiKey.startsWith('sk-')) {
+    return {
+      sentiment,
+      source: {
+        name: 'OpenAI news analyst',
+        status: 'error',
+        message: 'OPENAI_API_KEY is incomplete. Set a complete key beginning with sk-.',
         optional: true
       }
     };

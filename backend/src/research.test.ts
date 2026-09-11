@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { enrichNewsWithAi } from './aiNews.js';
 import { calculateTechnicals } from './indicators.js';
-import { parseRssNews } from './providers.js';
+import { isCryptoHeadlineRelevant, isNiftyHeadlineRelevant, parseRssNews } from './providers.js';
 import { analyseHeadlines, scoreHeadline } from './sentiment.js';
 
 describe('research inputs', () => {
@@ -36,6 +36,26 @@ describe('research inputs', () => {
     expect(enriched.analysis).toBeUndefined();
     expect(enriched.source.status).toBe('missing');
     expect(enriched.source.optional).toBe(true);
+  });
+
+  it('uses the deterministic fallback when the OpenAI key is incomplete', async () => {
+    vi.stubEnv('OPENAI_API_KEY', 'k-proj-incomplete');
+    const report = analyseHeadlines([
+      { title: 'Bitcoin rises after institutional inflows', source: 'Source A', url: 'https://example.com/a', publishedAt: '2026-09-10T05:00:00Z' }
+    ], new Date('2026-09-10T07:00:00Z').getTime());
+
+    const enriched = await enrichNewsWithAi('crypto', report, { spot: 100_000 });
+
+    expect(enriched.sentiment).toBe(report);
+    expect(enriched.source.status).toBe('error');
+    expect(enriched.source.message).toContain('beginning with sk-');
+  });
+
+  it('keeps only headlines relevant to each market', () => {
+    expect(isNiftyHeadlineRelevant('Indian shares rise as Nifty tracks an RBI rate decision')).toBe(true);
+    expect(isNiftyHeadlineRelevant('BlackRock expands its private credit team in Europe')).toBe(false);
+    expect(isCryptoHeadlineRelevant('Bitcoin and Ether rebound as crypto inflows improve')).toBe(true);
+    expect(isCryptoHeadlineRelevant('Financial stocks lead the broader equity market')).toBe(false);
   });
 
   it('parses direct RSS fallback headlines and decodes entities', () => {
