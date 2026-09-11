@@ -72,8 +72,8 @@ function signalValidity(card: MarketCard, generatedAt: string) {
   const generated = new Date(generatedAt);
   if (card.slug === 'crypto') {
     return {
-      label: `Recheck by ${formatTime(new Date(generated.getTime() + 4 * 60 * 60 * 1000).toISOString())} IST`,
-      detail: 'Rolling 4-8 hour view; it may change sooner',
+      label: 'Live snapshot, not a locked forecast',
+      detail: `Generated ${formatTime(generatedAt)} IST; confirm again after the next hourly close`,
       expired: false
     };
   }
@@ -101,17 +101,25 @@ function researchDecision(card: MarketCard, generatedAt: string): Decision {
     return { action: 'WAIT', copy: 'Cash market is closed. Re-evaluate after the next open.', tone: 'neutral' };
   }
 
+  if (card.trackRecord.resolved < 30 || card.trackRecord.hitRate == null || card.trackRecord.hitRate < 55) {
+    return {
+      action: 'PAPER TRADE ONLY',
+      copy: `This model is not calibrated for entries (${card.trackRecord.resolved}/30 resolved outcomes).`,
+      tone: 'neutral'
+    };
+  }
+
   if (card.verdict === 'NEUTRAL' || card.confidence < 55) {
     return { action: 'WAIT / NO TRADE', copy: 'The directional edge is not strong enough yet.', tone: 'neutral' };
   }
   if (card.slug === 'nifty') {
     return card.verdict === 'BULLISH'
-      ? { action: 'CALL BIAS', copy: 'Bullish research setup only; not an automatic buy order.', tone: 'bullish' }
-      : { action: 'PUT BIAS', copy: 'Bearish research setup only; not an automatic buy order.', tone: 'bearish' };
+      ? { action: 'BULLISH SETUP', copy: 'Research direction only; confirm entry and risk independently.', tone: 'bullish' }
+      : { action: 'BEARISH SETUP', copy: 'Research direction only; confirm entry and risk independently.', tone: 'bearish' };
   }
   return card.verdict === 'BULLISH'
-    ? { action: 'BUY BIAS', copy: 'Short-term spot bias for this signal window only.', tone: 'bullish' }
-    : { action: 'SELL / AVOID BUY', copy: 'Avoid fresh buys; this does not require shorting.', tone: 'bearish' };
+    ? { action: 'BULLISH SETUP', copy: 'Research direction only; this is not a buy instruction.', tone: 'bullish' }
+    : { action: 'BEARISH SETUP', copy: 'Research direction only; this is not a sell instruction.', tone: 'bearish' };
 }
 
 function fallbackMeaning(tone: HeadlineSignal['tone'], market: MarketCard['slug']) {
@@ -202,6 +210,11 @@ export default function App() {
 
         {error && <div className="error-banner">Last refresh failed: {error}</div>}
 
+        <div className="calibration-warning" role="note">
+          <ShieldAlert />
+          <div><strong>Experimental research model</strong><span>Paper-trade until at least 30 forward outcomes are resolved. Scores can change and are not win probabilities.</span></div>
+        </div>
+
         <section className="signal-grid" aria-label="Market signals">
           {dashboard.cards.map((card) => {
             const DirectionIcon = verdictIcon(card.verdict);
@@ -226,12 +239,12 @@ export default function App() {
                 </div>
 
                 <div className="direction-read">
-                  <p>Current direction</p>
+                  <p>Live market snapshot</p>
                   <div className={`direction-title ${card.verdict.toLowerCase()}`}>
                     <DirectionIcon />
                     <strong>{card.verdict}</strong>
                   </div>
-                  <span>{card.confidence}% model confidence</span>
+                  <span>{card.confidence}% input coverage and agreement</span>
                 </div>
 
                 <div className={`action-box ${decision.tone}`}>
@@ -245,12 +258,11 @@ export default function App() {
                   <div><strong>{validity.label}</strong><span>{validity.detail}</span></div>
                 </div>
 
-                <div className="probability-compact">
-                  <div><span>Bullish</span><strong>{card.probabilities.bullish}%</strong></div>
-                  <div className="probability-track"><i className="bull" style={{ width: `${card.probabilities.bullish}%` }} /><i className="bear" style={{ width: `${card.probabilities.bearish}%` }} /></div>
-                  <div><span>Bearish</span><strong>{card.probabilities.bearish}%</strong></div>
+                <div className="score-readout">
+                  <span>DIRECTIONAL SCORE</span>
+                  <strong>{card.score >= 0 ? '+' : ''}{card.score} / 100</strong>
                 </div>
-                <p className="neutral-probability">Neutral probability {card.probabilities.neutral}%</p>
+                <p className="score-disclaimer">Live composite strength, not a statistically calibrated probability.</p>
 
                 <div className="reason-list">
                   <small>WHY THIS READ</small>

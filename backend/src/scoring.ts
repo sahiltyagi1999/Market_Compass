@@ -82,8 +82,8 @@ function availabilityFromSources(sources: SourceStatus[]) {
 }
 
 function verdictFromScore(score: number): Exclude<Verdict, 'UNAVAILABLE'> {
-  if (score >= 18) return 'BULLISH';
-  if (score <= -18) return 'BEARISH';
+  if (score >= 30) return 'BULLISH';
+  if (score <= -30) return 'BEARISH';
   return 'NEUTRAL';
 }
 
@@ -285,8 +285,8 @@ export function scoreNifty(snapshot: NiftySnapshot, sources: SourceStatus[]): Ma
       technicalScore == null ? 'Intraday candles unavailable.' : `RSI/EMA/MACD and price momentum combine to ${Math.round(technicalScore * 100)}.`),
     analyst('positioning', 'Options Positioning', positioningScore == null ? undefined : positioningScore * 100, 25 + positioningCount * 20,
       positioningScore == null ? 'Option positioning unavailable.' : `PCR, OI build and max-pain pull combine to ${Math.round(positioningScore * 100)}.`),
-    analyst('sentiment', 'News Sentiment', snapshot.sentiment?.score, snapshot.sentiment?.confidence ?? 0,
-      snapshot.sentiment ? `${snapshot.sentiment.method === 'ai_blend' ? 'AI-enhanced: ' : ''}${snapshot.sentiment.positive} positive, ${snapshot.sentiment.negative} negative and ${snapshot.sentiment.neutral} neutral headlines.` : 'Recent headlines unavailable.'),
+    analyst('sentiment', 'News Sentiment', snapshot.sentiment?.deterministicScore, snapshot.sentiment?.confidence ?? 0,
+      snapshot.sentiment ? `Rules-based: ${snapshot.sentiment.positive} positive, ${snapshot.sentiment.negative} negative and ${snapshot.sentiment.neutral} neutral headlines. AI is explanation-only.` : 'Recent headlines unavailable.'),
     analyst('risk', 'Risk Manager', riskScore == null ? undefined : riskScore * 100, 25 + riskCount * 20,
       riskScore == null ? 'Volatility and execution-risk inputs unavailable.' : `VIX, IV and spread conditions combine to ${Math.round(riskScore * 100)}.`)
   ];
@@ -298,7 +298,7 @@ export function scoreNifty(snapshot: NiftySnapshot, sources: SourceStatus[]): Ma
   if (snapshot.pcr != null) items.push(evidence('pcr', 'Put-call ratio', snapshot.pcr.toFixed(2), scaled(snapshot.pcr - 1, 0.25), 12, 'Moderate put dominance can indicate support; low PCR leans cautious.'));
   if (oiSkew != null) items.push(evidence('oi', 'Put vs call OI build', `${pct(snapshot.putOiChangePercent!)} vs ${pct(snapshot.callOiChangePercent!)}`, scaled(oiSkew, 14), 16, 'Relative put versus call OI addition measures positioning.'));
   if (maxPainDistancePct != null) items.push(evidence('max-pain', 'Max-pain pull', `${snapshot.maxPain!.toFixed(0)} (${pct(maxPainDistancePct)})`, scaled(maxPainDistancePct, 1), 8, 'Expiry positioning can pull spot toward max pain, but is not a standalone target.'));
-  if (snapshot.sentiment) items.push(evidence('news', 'Headline sentiment', `${snapshot.sentiment.score >= 0 ? '+' : ''}${snapshot.sentiment.score}/100`, snapshot.sentiment.score / 100, 10, 'Recent headline tone is recency-weighted and used as context.'));
+  if (snapshot.sentiment) items.push(evidence('news', 'Headline sentiment', `${snapshot.sentiment.deterministicScore >= 0 ? '+' : ''}${snapshot.sentiment.deterministicScore}/100`, snapshot.sentiment.deterministicScore / 100, 10, 'Rules-based headline tone is recency-weighted; AI commentary does not change this score.'));
 
   const metrics: Metric[] = [
     changePct == null ? null : metric('Spot change', pct(changePct), 'vs previous close', toneFromSigned(changePct)),
@@ -308,7 +308,7 @@ export function scoreNifty(snapshot: NiftySnapshot, sources: SourceStatus[]): Ma
     oiSkew == null ? null : metric('OI skew', pct(oiSkew), 'put OI minus call OI build', toneFromSigned(oiSkew)),
     snapshot.maxPain == null ? null : metric('Max pain', snapshot.maxPain.toFixed(0), 'nearest expiry magnet', maxPainDistancePct != null ? toneFromSigned(maxPainDistancePct) : 'neutral'),
     snapshot.atmIv == null ? null : metric('ATM IV', `${snapshot.atmIv.toFixed(2)}%`, 'nearest ATM options', snapshot.atmIv <= 18 ? 'positive' : snapshot.atmIv >= 22 ? 'negative' : 'neutral'),
-    snapshot.sentiment == null ? null : metric('News pulse', `${snapshot.sentiment.score >= 0 ? '+' : ''}${snapshot.sentiment.score}`, `${snapshot.sentiment.method === 'ai_blend' ? 'AI blend' : 'rules'} · ${snapshot.sentiment.positive}/${snapshot.sentiment.negative} positive/negative`, toneFromSigned(snapshot.sentiment.score))
+    snapshot.sentiment == null ? null : metric('News pulse', `${snapshot.sentiment.deterministicScore >= 0 ? '+' : ''}${snapshot.sentiment.deterministicScore}`, `rules · ${snapshot.sentiment.positive}/${snapshot.sentiment.negative} positive/negative`, toneFromSigned(snapshot.sentiment.deterministicScore))
   ].filter((item): item is Metric => Boolean(item));
 
   const risks: string[] = [];
@@ -356,7 +356,7 @@ export function scoreCrypto(snapshot: CryptoSnapshot, sources: SourceStatus[]): 
     snapshot.btcDominance == null ? undefined : scaled(57 - snapshot.btcDominance, 6)
   ];
   const sentimentParts = [
-    snapshot.sentiment == null ? undefined : snapshot.sentiment.score / 100,
+    snapshot.sentiment == null ? undefined : snapshot.sentiment.deterministicScore / 100,
     snapshot.fearGreed == null ? undefined : scaled(snapshot.fearGreed - 50, 32)
   ];
   const riskParts = [
@@ -374,7 +374,7 @@ export function scoreCrypto(snapshot: CryptoSnapshot, sources: SourceStatus[]): 
     analyst('positioning', 'Market Breadth', positioningScore == null ? undefined : positioningScore * 100, 25 + positioningParts.filter((value) => value != null).length * 20,
       positioningScore == null ? 'Broad-market participation unavailable.' : `Market cap, top-10 breadth and dominance combine to ${Math.round(positioningScore * 100)}.`),
     analyst('sentiment', 'Sentiment Analyst', sentimentScore == null ? undefined : sentimentScore * 100, average([snapshot.sentiment?.confidence, snapshot.fearGreed == null ? undefined : 75]) ?? 0,
-      sentimentScore == null ? 'News and sentiment gauges unavailable.' : `${snapshot.sentiment?.method === 'ai_blend' ? 'AI headline meaning' : 'Headline tone'} and Fear & Greed combine to ${Math.round(sentimentScore * 100)}.`),
+      sentimentScore == null ? 'News and sentiment gauges unavailable.' : `Rules-based headline tone and Fear & Greed combine to ${Math.round(sentimentScore * 100)}; AI is explanation-only.`),
     analyst('risk', 'Risk Manager', riskScore == null ? undefined : riskScore * 100, 35 + riskParts.filter((value) => value != null).length * 22,
       riskScore == null ? 'Liquidity and volatility inputs unavailable.' : `Spread and realized-volatility conditions combine to ${Math.round(riskScore * 100)}.`)
   ];
@@ -389,7 +389,7 @@ export function scoreCrypto(snapshot: CryptoSnapshot, sources: SourceStatus[]): 
   const usesMoodProxy = snapshot.fearGreedLabel === 'Market data proxy';
   const moodLabel = usesMoodProxy ? 'Market mood' : 'Fear & Greed';
   if (snapshot.fearGreed != null) items.push(evidence('fear-greed', moodLabel, `${snapshot.fearGreed} · ${snapshot.fearGreedLabel || 'Unknown'}`, scaled(snapshot.fearGreed - 50, 32), 10, usesMoodProxy ? 'A transparent composite of live momentum, breadth, technicals and news.' : 'A keyless market sentiment gauge; extremes also raise contrarian risk.'));
-  if (snapshot.sentiment) items.push(evidence('news', 'Headline sentiment', `${snapshot.sentiment.score >= 0 ? '+' : ''}${snapshot.sentiment.score}/100`, snapshot.sentiment.score / 100, 10, 'Recent crypto headline tone is recency-weighted.'));
+  if (snapshot.sentiment) items.push(evidence('news', 'Headline sentiment', `${snapshot.sentiment.deterministicScore >= 0 ? '+' : ''}${snapshot.sentiment.deterministicScore}/100`, snapshot.sentiment.deterministicScore / 100, 10, 'Rules-based crypto headline tone is recency-weighted; AI commentary does not change this score.'));
 
   const metrics: Metric[] = [
     snapshot.btcChangePct == null ? null : metric('BTC 24h', pct(snapshot.btcChangePct), 'leader momentum', toneFromSigned(snapshot.btcChangePct)),
@@ -398,7 +398,7 @@ export function scoreCrypto(snapshot: CryptoSnapshot, sources: SourceStatus[]): 
     snapshot.marketCapChangePct == null ? null : metric('Market cap', pct(snapshot.marketCapChangePct), 'global 24h change', toneFromSigned(snapshot.marketCapChangePct)),
     breadthPct == null ? null : metric('Top-10 breadth', `${breadthPct.toFixed(0)}%`, 'large caps in green', breadthPct >= 60 ? 'positive' : breadthPct <= 40 ? 'negative' : 'neutral'),
     snapshot.fearGreed == null ? null : metric(moodLabel, String(snapshot.fearGreed), snapshot.fearGreedLabel || 'market mood', snapshot.fearGreed >= 55 ? 'positive' : snapshot.fearGreed <= 45 ? 'negative' : 'neutral'),
-    snapshot.sentiment == null ? null : metric('News pulse', `${snapshot.sentiment.score >= 0 ? '+' : ''}${snapshot.sentiment.score}`, `${snapshot.sentiment.method === 'ai_blend' ? 'AI blend' : 'rules'} · ${snapshot.sentiment.positive}/${snapshot.sentiment.negative} positive/negative`, toneFromSigned(snapshot.sentiment.score)),
+    snapshot.sentiment == null ? null : metric('News pulse', `${snapshot.sentiment.deterministicScore >= 0 ? '+' : ''}${snapshot.sentiment.deterministicScore}`, `rules · ${snapshot.sentiment.positive}/${snapshot.sentiment.negative} positive/negative`, toneFromSigned(snapshot.sentiment.deterministicScore)),
     spreadBlend == null ? null : metric('Execution spread', `${spreadBlend.toFixed(3)}%`, 'BTC/ETH average', spreadBlend <= 0.05 ? 'positive' : spreadBlend >= 0.15 ? 'negative' : 'neutral')
   ].filter((item): item is Metric => Boolean(item));
 

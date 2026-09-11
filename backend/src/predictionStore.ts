@@ -18,7 +18,7 @@ interface PredictionEntry {
 }
 
 const storePath = fileURLToPath(new URL('../data/predictions.json', import.meta.url));
-const modelVersion = 'research-desk-v2-ai';
+export const MODEL_VERSION = 'research-desk-v3-safety';
 let writeQueue = Promise.resolve();
 
 async function loadEntries() {
@@ -51,7 +51,7 @@ function wasCorrect(entry: PredictionEntry, movePct: number) {
 }
 
 function recordFor(entries: PredictionEntry[], slug: MarketCard['slug']): TrackRecord {
-  const matching = entries.filter((entry) => entry.slug === slug && entry.modelVersion === modelVersion);
+  const matching = entries.filter((entry) => entry.slug === slug && entry.modelVersion === MODEL_VERSION);
   const resolved = matching.filter((entry) => entry.correct != null);
   const pending = matching.filter((entry) => entry.correct == null);
   const hitRate = resolved.length
@@ -73,7 +73,7 @@ async function update(cards: MarketCard[]) {
   const entries = await loadEntries();
 
   for (const entry of entries) {
-    if (entry.modelVersion !== modelVersion || entry.correct != null || new Date(entry.targetAt).getTime() > now.getTime()) continue;
+    if (entry.modelVersion !== MODEL_VERSION || entry.correct != null || new Date(entry.targetAt).getTime() > now.getTime()) continue;
     const price = bySlug.get(entry.slug)?.price;
     if (!price || !entry.startPrice) continue;
     const movePct = ((price - entry.startPrice) / entry.startPrice) * 100;
@@ -87,14 +87,14 @@ async function update(cards: MarketCard[]) {
     if (!card.price || card.verdict === 'UNAVAILABLE') continue;
     if (card.slug === 'nifty' && !isNiftyMarketHours(now)) continue;
     const latestPending = entries
-      .filter((entry) => entry.slug === card.slug && entry.modelVersion === modelVersion && entry.correct == null)
+      .filter((entry) => entry.slug === card.slug && entry.modelVersion === MODEL_VERSION && entry.correct == null)
       .sort((left, right) => right.generatedAt.localeCompare(left.generatedAt))[0];
     if (latestPending && now.getTime() - new Date(latestPending.generatedAt).getTime() < 60 * 60 * 1000) continue;
     const horizonHours = card.slug === 'nifty' ? 3 : 6;
     entries.push({
       id: randomUUID(),
       slug: card.slug,
-      modelVersion,
+      modelVersion: MODEL_VERSION,
       generatedAt: now.toISOString(),
       targetAt: new Date(now.getTime() + horizonHours * 60 * 60 * 1000).toISOString(),
       verdict: card.verdict,

@@ -1,6 +1,6 @@
 import { calculateTechnicals } from './indicators.js';
 import { enrichNewsWithAi } from './aiNews.js';
-import { attachTrackRecords } from './predictionStore.js';
+import { attachTrackRecords, MODEL_VERSION } from './predictionStore.js';
 import { scoreCrypto, scoreNifty } from './scoring.js';
 import { analyseHeadlines, type RawHeadline } from './sentiment.js';
 import type { Candle, CryptoSnapshot, DashboardResponse, NiftySnapshot, SourceStatus } from './types.js';
@@ -32,11 +32,6 @@ type CoinGeckoGlobal = {
     market_cap_percentage?: { btc?: number };
     updated_at?: number;
   };
-};
-
-type CoinGeckoCoin = {
-  price_change_percentage_24h_in_currency?: number;
-  last_updated?: string;
 };
 
 type BinanceTicker = {
@@ -93,7 +88,7 @@ export function calculateMarketMoodProxy(snapshot: CryptoSnapshot) {
     snapshot.breadthPositiveRatio == null ? undefined : snapshot.breadthPositiveRatio * 100,
     snapshot.technical?.rsi,
     snapshot.technical?.emaSpreadPct == null ? undefined : 50 + snapshot.technical.emaSpreadPct * 10,
-    snapshot.sentiment == null ? undefined : 50 + snapshot.sentiment.score / 2
+    snapshot.sentiment == null ? undefined : 50 + snapshot.sentiment.deterministicScore / 2
   ].filter((value): value is number => value != null && Number.isFinite(value));
   if (!components.length) return undefined;
   return Math.round(clamp(components.reduce((sum, value) => sum + clamp(value, 0, 100), 0) / components.length, 0, 100));
@@ -525,7 +520,11 @@ async function fetchBinanceCandles() {
     undefined,
     60_000
   );
-  return rows.map(parseCandle).filter((item): item is Candle => Boolean(item));
+  const now = Date.now();
+  return rows
+    .filter((row) => Number(row[6]) <= now)
+    .map(parseCandle)
+    .filter((item): item is Candle => Boolean(item));
 }
 
 function coingeckoHeaders() {
@@ -545,31 +544,22 @@ async function fetchCryptoGlobal() {
     const global = body[0];
     if (!global) throw new Error('CoinLore returned no global metrics.');
     return {
-      marketCapChangePct: toNumber(global.mcap_change),
+      // CoinLore's change figure can materially disagree with CoinGecko's
+      // rolling window, so it must not replace the directional input.
+      marketCapChangePct: undefined,
       btcDominance: toNumber(global.btc_d),
-      source: 'CoinLore global fallback'
+      source: 'CoinLore dominance fallback'
     };
   }
 }
 
 async function fetchCryptoBreadth() {
-  try {
-    const body = await fetchJson<CoinGeckoCoin[]>(
-      'https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=10&page=1&sparkline=false&price_change_percentage=24h',
-      { headers: coingeckoHeaders() },
-      2 * 60 * 1000
-    );
-    const moves = body.map((coin) => toNumber(coin.price_change_percentage_24h_in_currency)).filter((value): value is number => value != null);
-    if (!moves.length) throw new Error('CoinGecko returned no breadth metrics.');
-    return { moves, source: 'CoinGecko breadth' };
-  } catch {
-    const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT', 'DOGEUSDT', 'ADAUSDT', 'TRXUSDT', 'AVAXUSDT', 'LINKUSDT'];
-    const url = `https://data-api.binance.vision/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symbols))}`;
-    const body = await fetchJson<BinanceTicker[]>(url, undefined, 60_000);
-    const moves = body.map((ticker) => toNumber(ticker.priceChangePercent)).filter((value): value is number => value != null);
-    if (!moves.length) throw new Error('Binance returned no breadth metrics.');
-    return { moves, source: 'Binance top-10 breadth fallback' };
-  }
+  const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT', 'DOGEUSDT', 'ADAUSDT', 'TRXUSDT', 'AVAXUSDT', 'LINKUSDT'];
+  const url = `https://data-api.binance.vision/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symbols))}`;
+  const body = await fetchJson<BinanceTicker[]>(url, undefined, 60_000);
+  const moves = body.map((ticker) => toNumber(ticker.priceChangePercent)).filter((value): value is number => value != null);
+  if (!moves.length) throw new Error('Binance returned no breadth metrics.');
+  return { moves, source: 'Binance fixed-basket breadth' };
 }
 
 async function collectCryptoCard() {
@@ -599,7 +589,11 @@ async function collectCryptoCard() {
   if (global.status === 'fulfilled') {
     snapshot.marketCapChangePct = global.value.marketCapChangePct;
     snapshot.btcDominance = global.value.btcDominance;
-    sources.push({ name: global.value.source, status: 'live', message: 'Market cap and BTC dominance loaded.' });
+    const loaded = [
+      snapshot.marketCapChangePct == null ? null : 'market-cap change',
+      snapshot.btcDominance == null ? null : 'BTC dominance'
+    ].filter(Boolean).join(' and ');
+    sources.push({ name: global.value.source, status: 'live', message: `${loaded || 'Global context'} loaded.` });
   } else sources.push({ name: 'CoinGecko global', status: 'error', message: errorMessage(global.reason, 'Global data failed.') });
 
   if (topCoins.status === 'fulfilled') {
@@ -664,7 +658,7 @@ export async function buildDashboard(): Promise<DashboardResponse> {
   }
   return {
     generatedAt: new Date().toISOString(),
-    modelVersion: 'research-desk-v2-ai',
+    modelVersion: MODEL_VERSION,
     cards,
     notes: [
       'Probabilities are model-implied, not statistically calibrated until enough forward outcomes are collected.',

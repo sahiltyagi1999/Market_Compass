@@ -73,4 +73,48 @@ describe('dashboard scoring', () => {
     expect(report.availability).toBe('partial');
     expect(report.verdict).not.toBe('UNAVAILABLE');
   });
+
+  it('keeps a moderate mixed crypto score neutral instead of issuing a trade direction', () => {
+    const report = scoreCrypto({
+      btcPrice: 78_000,
+      btcChangePct: 1.1,
+      ethChangePct: 0.8,
+      marketCapChangePct: 0.7,
+      breadthPositiveRatio: 0.6,
+      fearGreed: 58,
+      btcSpreadPercent: 0.01
+    }, [{ name: 'market data', status: 'live', message: 'ok' }]);
+
+    expect(report.score).toBeGreaterThan(0);
+    expect(report.verdict).toBe('NEUTRAL');
+  });
+
+  it('does not let optional AI sentiment change the directional score', () => {
+    const base = {
+      btcPrice: 78_000,
+      btcChangePct: 0.4,
+      ethChangePct: -0.2,
+      breadthPositiveRatio: 0.5,
+      fearGreed: 50,
+      sentiment: {
+        score: 90,
+        deterministicScore: -20,
+        aiScore: 90,
+        method: 'ai_blend' as const,
+        confidence: 70,
+        positive: 4,
+        negative: 4,
+        neutral: 0,
+        headlines: []
+      }
+    };
+    const sources = [{ name: 'market data', status: 'live' as const, message: 'ok' }];
+    const withAi = scoreCrypto(base, sources);
+    const withoutAi = scoreCrypto({
+      ...base,
+      sentiment: { ...base.sentiment, score: -20, method: 'deterministic' as const }
+    }, sources);
+
+    expect(withAi.score).toBe(withoutAi.score);
+  });
 });
