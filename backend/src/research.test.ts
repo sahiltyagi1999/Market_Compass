@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { enrichNewsWithAi } from './aiNews.js';
 import { calculateTechnicals } from './indicators.js';
-import { isCryptoHeadlineRelevant, isNiftyHeadlineRelevant, parseRssNews } from './providers.js';
+import { calculateMarketMoodProxy, isCryptoHeadlineRelevant, isNiftyHeadlineRelevant, parseRssNews } from './providers.js';
 import { analyseHeadlines, scoreHeadline } from './sentiment.js';
 
 describe('research inputs', () => {
@@ -56,6 +56,17 @@ describe('research inputs', () => {
     expect(isNiftyHeadlineRelevant('BlackRock expands its private credit team in Europe')).toBe(false);
     expect(isCryptoHeadlineRelevant('Bitcoin and Ether rebound as crypto inflows improve')).toBe(true);
     expect(isCryptoHeadlineRelevant('Financial stocks lead the broader equity market')).toBe(false);
+  });
+
+  it('builds a bounded market mood fallback from live crypto inputs', () => {
+    expect(calculateMarketMoodProxy({
+      btcChangePct: 2,
+      marketCapChangePct: 1,
+      breadthPositiveRatio: 0.7,
+      technical: { rsi: 60, emaFast: 1, emaSlow: 1, emaSpreadPct: 0.5, volatilityPct: 1, candleCount: 80 }
+    })).toBe(60);
+    expect(calculateMarketMoodProxy({ btcChangePct: 100 })).toBe(100);
+    expect(calculateMarketMoodProxy({})).toBeUndefined();
   });
 
   it('parses direct RSS fallback headlines and decodes entities', () => {

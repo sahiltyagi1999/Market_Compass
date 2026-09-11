@@ -84,6 +84,21 @@ function spreadPercent(bid?: number, ask?: number) {
   return midpoint > 0 ? ((ask - bid) / midpoint) * 100 : undefined;
 }
 
+const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+export function calculateMarketMoodProxy(snapshot: CryptoSnapshot) {
+  const components = [
+    snapshot.btcChangePct == null ? undefined : 50 + snapshot.btcChangePct * 5,
+    snapshot.marketCapChangePct == null ? undefined : 50 + snapshot.marketCapChangePct * 5,
+    snapshot.breadthPositiveRatio == null ? undefined : snapshot.breadthPositiveRatio * 100,
+    snapshot.technical?.rsi,
+    snapshot.technical?.emaSpreadPct == null ? undefined : 50 + snapshot.technical.emaSpreadPct * 10,
+    snapshot.sentiment == null ? undefined : 50 + snapshot.sentiment.score / 2
+  ].filter((value): value is number => value != null && Number.isFinite(value));
+  if (!components.length) return undefined;
+  return Math.round(clamp(components.reduce((sum, value) => sum + clamp(value, 0, 100), 0) / components.length, 0, 100));
+}
+
 async function cached<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
   const existing = cache.get(key);
   if (existing && existing.expiresAt > Date.now()) return existing.value as T;
@@ -608,6 +623,19 @@ async function collectCryptoCard() {
     if (news.value.headlines.length) snapshot.sentiment = analyseHeadlines(news.value.headlines);
     sources.push(...news.value.statuses);
   } else sources.push({ name: 'Crypto news feeds', status: 'error', message: errorMessage(news.reason, 'News failed.'), optional: true });
+
+  if (snapshot.fearGreed == null) {
+    snapshot.fearGreed = calculateMarketMoodProxy(snapshot);
+    if (snapshot.fearGreed != null) {
+      snapshot.fearGreedLabel = 'Market data proxy';
+      sources.push({
+        name: 'Market mood proxy',
+        status: 'live',
+        message: 'Calculated from live momentum, breadth, technicals and news because the external gauge is unavailable.',
+        optional: true
+      });
+    }
+  }
 
   await applyAiNews('crypto', snapshot, sources, {
     btcPrice: snapshot.btcPrice,
