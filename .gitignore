@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+*.log
+*.tsbuildinfo
+.netlify/
+.DS_Store
+backend/data/*.json
+!backend/data/.gitkeep

@@ -1,0 +1,25 @@
+services:
+  - type: web
+    name: market-compass-india-api
+    runtime: node
+    plan: free
+    buildCommand: npm ci && npm run build -w backend
+    startCommand: npm run start -w backend
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_VERSION
+        value: 22.22.0
+      - key: FRONTEND_ORIGIN
+        sync: false
+      - key: UPSTOX_ANALYTICS_TOKEN
+        sync: false
+      - key: UPSTOX_NIFTY_KEY
+        value: NSE_INDEX|Nifty 50
+      - key: UPSTOX_VIX_KEY
+        value: NSE_INDEX|India VIX
+      - key: COINGECKO_DEMO_API_KEY
+        sync: false
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_MODEL
+        value: gpt-5-mini
