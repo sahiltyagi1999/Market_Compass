@@ -5,12 +5,16 @@
   "engines": {
     "node": ">=22 <23"
   },
-  "workspaces": ["frontend", "backend"],
+  "workspaces": [
+    "frontend",
+    "backend"
+  ],
   "scripts": {
     "dev": "concurrently -n API,WEB -c yellow,cyan \"npm run dev -w backend\" \"npm run dev -w frontend\"",
     "build": "npm run build -w backend && npm run build -w frontend",
-    "test": "npm run test -w backend",
-    "start": "npm run start -w backend"
+    "test": "npm run test -w backend && npm run test -w frontend",
+    "start": "npm run start -w backend",
+    "typecheck": "npm run typecheck -w backend && npm exec -w frontend -- tsc -b"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

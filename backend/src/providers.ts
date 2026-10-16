@@ -1,85 +1,55 @@
-import { calculateTechnicals } from './indicators.js';
 import { enrichNewsWithAi } from './aiNews.js';
-import { attachTrackRecords, MODEL_VERSION } from './predictionStore.js';
+import { fetchCryptoDerivatives, fetchSpotOrderBookImbalance } from './cryptoData.js';
+import { attachEvents } from './events.js';
+import { clearHttpCache, errorMessage, fetchJson, fetchJsonMeta, toNumber } from './http.js';
+import { calculateTechnicals, returnOverBars } from './indicators.js';
+import { istDateKey, isTradingDay, marketStatus, previousTradingDay, sessionBounds } from './marketSession.js';
+import { DEFAULT_CONFIG, type ModelConfig } from './modelConfig.js';
+import { fetchCryptoNews, fetchNiftyNews, fetchUpstoxNews } from './news.js';
+import { fetchGlobalCues, fetchInstitutionalFlows, fetchNiftyBreadth, fetchNiftyFutures } from './niftyData.js';
+import { analyseOptionChain, spreadPercent, type UpstoxChainRow } from './optionsAnalysis.js';
 import { scoreCrypto, scoreNifty } from './scoring.js';
 import { analyseHeadlines, type RawHeadline } from './sentiment.js';
-import type { Candle, CryptoSnapshot, DashboardResponse, NiftySnapshot, SourceStatus } from './types.js';
+import type { Candle, CryptoSnapshot, MarketCard, NiftySnapshot, SourceStatus } from './types.js';
+import { closedCandles, fetchHistoricalCandles, fetchIntradayCandles, fetchLtp, upstoxHeaders, upstoxToken } from './upstox.js';
 
-type QuotePayload = {
-  data?: Record<string, {
-    last_price?: number;
-    cp?: number;
-    timestamp?: string;
-  }>;
-};
-
-type UpstoxStrike = {
-  strike_price?: number;
-  underlying_spot_price?: number;
-  call_options?: {
-    market_data?: { oi?: number; prev_oi?: number; bid_price?: number; ask_price?: number };
-    option_greeks?: { iv?: number };
-  };
-  put_options?: {
-    market_data?: { oi?: number; prev_oi?: number; bid_price?: number; ask_price?: number };
-    option_greeks?: { iv?: number };
-  };
-};
-
-type CoinGeckoGlobal = {
-  data?: {
-    market_cap_change_percentage_24h_usd?: number;
-    market_cap_percentage?: { btc?: number };
-    updated_at?: number;
-  };
-};
-
-type BinanceTicker = {
-  symbol?: string;
-  lastPrice?: string;
-  bidPrice?: string;
-  askPrice?: string;
-  priceChangePercent?: string;
-  closeTime?: number;
-};
-
-type CoinLoreGlobal = {
-  mcap_change?: string | number;
-  btc_d?: string | number;
-};
-
-type NewsBundle = {
-  headlines: RawHeadline[];
-  statuses: SourceStatus[];
-};
-
-type FearGreedResponse = {
-  data?: Array<{ value?: string; value_classification?: string; timestamp?: string }>;
-};
-
-type UpstoxNewsResponse = {
-  data?: Record<string, Array<{
-    heading?: string;
-    summary?: string;
-    article_link?: string;
-    published_time?: number;
-  }>>;
-};
-
-const cache = new Map<string, { expiresAt: number; value: unknown }>();
-
-function toNumber(value: unknown) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) ? parsed : undefined;
-}
-
-function spreadPercent(bid?: number, ask?: number) {
-  if (!bid || !ask || ask < bid) return undefined;
-  const midpoint = (bid + ask) / 2;
-  return midpoint > 0 ? ((ask - bid) / midpoint) * 100 : undefined;
-}
+export { isCryptoHeadlineRelevant, isNiftyHeadlineRelevant, parseRssNews } from './news.js';
 
 const clamp = (value: number, min: number, max: number) => Math.max(min, Math.min(max, value));
+
+/** Each scheduled prediction cycle starts from a clean slate. */
+export function clearProviderCache() {
+  clearHttpCache();
+}
+
+/**
+ * Builds a source status with freshness. When `maxAgeSeconds` is given and
+ * the observation is older, the status is 'stale' and callers must not score it.
+ */
+export function sourceStatus(
+  name: string,
+  message: string,
+  options: { observedAt?: number; retrievedAt?: number; maxAgeSeconds?: number; optional?: boolean; fromCache?: boolean; now?: number } = {}
+): SourceStatus {
+  const now = options.now ?? Date.now();
+  const ageSeconds = options.observedAt != null ? Math.max(0, Math.round((now - options.observedAt) / 1000)) : undefined;
+  const stale = options.maxAgeSeconds != null && ageSeconds != null && ageSeconds > options.maxAgeSeconds;
+  return {
+    name,
+    status: stale ? 'stale' : 'live',
+    message: stale ? `${message} Stale: ${Math.round(ageSeconds! / 60)} min old (limit ${Math.round(options.maxAgeSeconds! / 60)} min).` : message,
+    optional: options.optional,
+    observedAt: options.observedAt != null ? new Date(options.observedAt).toISOString() : undefined,
+    retrievedAt: new Date(options.retrievedAt ?? now).toISOString(),
+    ageSeconds,
+    maxAgeSeconds: options.maxAgeSeconds,
+    fromCache: options.fromCache
+  };
+}
+
+function failed(name: string, error: unknown, fallback: string, optional?: boolean): SourceStatus {
+  return { name, status: 'error', message: errorMessage(error, fallback), optional, retrievedAt: new Date().toISOString() };
+}
 
 export function calculateMarketMoodProxy(snapshot: CryptoSnapshot) {
   const components = [
@@ -94,40 +64,6 @@ export function calculateMarketMoodProxy(snapshot: CryptoSnapshot) {
   return Math.round(clamp(components.reduce((sum, value) => sum + clamp(value, 0, 100), 0) / components.length, 0, 100));
 }
 
-async function cached<T>(key: string, ttlMs: number, loader: () => Promise<T>): Promise<T> {
-  const existing = cache.get(key);
-  if (existing && existing.expiresAt > Date.now()) return existing.value as T;
-  const value = await loader();
-  cache.set(key, { expiresAt: Date.now() + ttlMs, value });
-  return value;
-}
-
-async function fetchJson<T>(url: string, init?: RequestInit, ttlMs = 0): Promise<T> {
-  return cached(url, ttlMs, async () => {
-    const response = await fetch(url, init);
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-    return response.json() as Promise<T>;
-  });
-}
-
-async function fetchText(url: string, ttlMs = 0) {
-  return cached(url, ttlMs, async () => {
-    const response = await fetch(url, {
-      headers: { 'User-Agent': 'MarketCompassIndia/1.0 (+local research dashboard)' }
-    });
-    if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
-    return response.text();
-  });
-}
-
-function upstoxHeaders(token: string) {
-  return { Authorization: `Bearer ${token}`, Accept: 'application/json' };
-}
-
-function errorMessage(error: unknown, fallback: string) {
-  return error instanceof Error ? error.message : fallback;
-}
-
 async function applyAiNews(
   market: 'nifty' | 'crypto',
   snapshot: NiftySnapshot | CryptoSnapshot,
@@ -135,12 +71,7 @@ async function applyAiNews(
   marketContext: unknown
 ) {
   if (!snapshot.sentiment) {
-    sources.push({
-      name: 'OpenAI news analyst',
-      status: 'missing',
-      message: 'No headlines were available for semantic analysis.',
-      optional: true
-    });
+    sources.push({ name: 'OpenAI news analyst', status: 'missing', message: 'No headlines were available for semantic analysis.', optional: true });
     return;
   }
   try {
@@ -158,373 +89,221 @@ async function applyAiNews(
   }
 }
 
-function decodeXml(value: string) {
-  const entities: Record<string, string> = {
-    amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' '
-  };
-  return value
-    .replace(/^<!\[CDATA\[|\]\]>$/g, '')
-    .replace(/&#(\d+);/g, (_, code: string) => String.fromCharCode(Number(code)))
-    .replace(/&#x([0-9a-f]+);/gi, (_, code: string) => String.fromCharCode(Number.parseInt(code, 16)))
-    .replace(/&([a-z]+);/gi, (match, entity: string) => entities[entity] ?? match)
-    .trim();
-}
-
-function xmlTag(item: string, tag: string) {
-  const match = item.match(new RegExp(`<${tag}(?:\\s[^>]*)?>([\\s\\S]*?)<\\/${tag}>`, 'i'));
-  return match ? decodeXml(match[1]) : '';
-}
-
-export function parseRssNews(xml: string, fallbackSource: string): RawHeadline[] {
-  return [...xml.matchAll(/<item(?:\s[^>]*)?>([\s\S]*?)<\/item>/gi)].map((match) => {
-    const item = match[1];
-    const published = xmlTag(item, 'pubDate') || xmlTag(item, 'dc:date');
-    const date = new Date(published || Date.now());
-    return {
-      title: xmlTag(item, 'title').replace(/\]\]>$/, '').replace(/<[^>]+>/g, '').trim(),
-      source: xmlTag(item, 'source') || fallbackSource,
-      url: xmlTag(item, 'link'),
-      publishedAt: Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString()
-    };
-  }).filter((item) => item.title && item.url);
-}
-
-async function fetchRssNews(url: string, source: string) {
-  return parseRssNews(await fetchText(url, 5 * 60 * 1000), source);
-}
-
-export function isNiftyHeadlineRelevant(title: string) {
-  return /\b(nifty(?:\s*50)?|sensex|india vix|bank nifty|nse|bse|indian (?:shares?|stocks?|equities|equity|markets?)|india(?:'s)? (?:stock|share|equity|financial) market|rupee|reserve bank of india|rbi|sebi|foreign (?:portfolio )?investors?|fpis?|fiis?|federal reserve|fed (?:chair|rates?|rate cut|rate hike)|crude oil|brent|us tariffs?)\b/i.test(title);
-}
-
-export function isCryptoHeadlineRelevant(title: string) {
-  return /\b(bitcoin|btc|ethereum|ether|eth|crypto(?:currency|currencies)?|blockchain|digital assets?|stablecoins?|coinbase|binance|solana|xrp|dogecoin|crypto miner|bitcoin miner|clarity act)\b/i.test(title);
-}
-
-async function fetchNewsBundle(
-  feeds: Array<{ name: string; loader: () => Promise<RawHeadline[]> }>,
-  isRelevant: (title: string) => boolean
-): Promise<NewsBundle> {
-  const settled = await Promise.allSettled(feeds.map((feed) => feed.loader()));
-  const statuses: SourceStatus[] = [];
-  const groups: RawHeadline[][] = [];
-  settled.forEach((result, index) => {
-    const name = feeds[index].name;
-    const relevant = result.status === 'fulfilled'
-      ? result.value.filter((item) => isRelevant(item.title))
-      : [];
-    if (relevant.length) {
-      groups.push(relevant);
-      statuses.push({
-        name,
-        status: 'live',
-        message: `${relevant.length} relevant headlines selected from ${result.status === 'fulfilled' ? result.value.length : 0}.`,
-        optional: true
-      });
-    } else {
-      statuses.push({
-        name,
-        status: result.status === 'fulfilled' ? 'missing' : 'error',
-        message: result.status === 'fulfilled' ? 'No current headlines returned.' : errorMessage(result.reason, 'Feed failed.'),
-        optional: true
-      });
-    }
-  });
-
-  const cutoff = Date.now() - 4 * 24 * 60 * 60 * 1000;
-  const headlines: RawHeadline[] = [];
-  const seen = new Set<string>();
-  const longest = Math.max(0, ...groups.map((group) => group.length));
-  for (let index = 0; index < longest && headlines.length < 45; index += 1) {
-    for (const group of groups) {
-      const item = group[index];
-      if (!item || new Date(item.publishedAt).getTime() < cutoff) continue;
-      const key = item.title.toLowerCase().replace(/[^a-z0-9]/g, '').slice(0, 120);
-      if (!key || seen.has(key)) continue;
-      seen.add(key);
-      headlines.push(item);
-    }
-  }
-  return { headlines, statuses };
-}
-
-async function fetchGoogleNews(query: string, locale: 'IN' | 'US'): Promise<RawHeadline[]> {
-  const language = locale === 'IN' ? 'en-IN' : 'en-US';
-  const url = `https://news.google.com/rss/search?q=${encodeURIComponent(query)}&hl=${language}&gl=${locale}&ceid=${locale}:en`;
-  const xml = await fetchText(url, 5 * 60 * 1000);
-  return [...xml.matchAll(/<item>([\s\S]*?)<\/item>/gi)].slice(0, 30).map((match) => {
-    const item = match[1];
-    const source = xmlTag(item, 'source') || 'Google News';
-    const fullTitle = xmlTag(item, 'title');
-    const suffix = ` - ${source}`;
-    return {
-      title: fullTitle.endsWith(suffix) ? fullTitle.slice(0, -suffix.length) : fullTitle,
-      source,
-      url: xmlTag(item, 'link'),
-      publishedAt: new Date(xmlTag(item, 'pubDate') || Date.now()).toISOString()
-    };
-  }).filter((item) => item.title && item.url);
-}
-
-function fetchNiftyNews() {
-  return fetchNewsBundle([
-    { name: 'Yahoo Finance NIFTY RSS', loader: () => fetchRssNews('https://feeds.finance.yahoo.com/rss/2.0/headline?s=%5ENSEI&region=IN&lang=en-IN', 'Yahoo Finance') },
-    { name: 'Economic Times Markets RSS', loader: () => fetchRssNews('https://economictimes.indiatimes.com/markets/rssfeeds/1977021501.cms', 'Economic Times') },
-    { name: 'Google News RSS', loader: () => fetchGoogleNews('(NIFTY 50 OR Sensex OR NSE OR India VIX) when:2d', 'IN') }
-  ], isNiftyHeadlineRelevant);
-}
-
-function fetchCryptoNews() {
-  return fetchNewsBundle([
-    { name: 'Yahoo Finance Bitcoin RSS', loader: () => fetchRssNews('https://feeds.finance.yahoo.com/rss/2.0/headline?s=BTC-USD&region=US&lang=en-US', 'Yahoo Finance') },
-    { name: 'CoinDesk RSS', loader: () => fetchRssNews('https://www.coindesk.com/arc/outboundfeeds/rss/', 'CoinDesk') },
-    { name: 'Cointelegraph RSS', loader: () => fetchRssNews('https://cointelegraph.com/rss', 'Cointelegraph') },
-    { name: 'Google News RSS', loader: () => fetchGoogleNews('(Bitcoin OR Ethereum OR cryptocurrency) when:2d', 'US') }
-  ], isCryptoHeadlineRelevant);
-}
-
-async function fetchUpstoxNews(token: string, instrumentKey: string): Promise<RawHeadline[]> {
-  const url = `https://api.upstox.com/v2/news?category=instrument_keys&instrument_keys=${encodeURIComponent(instrumentKey)}&page_size=30`;
-  const body = await fetchJson<UpstoxNewsResponse>(url, { headers: upstoxHeaders(token) }, 5 * 60 * 1000);
-  return Object.values(body.data || {}).flat().map((item) => ({
-    title: item.heading || item.summary || '',
-    source: 'Upstox News',
-    url: item.article_link || '',
-    publishedAt: new Date(item.published_time || Date.now()).toISOString()
-  })).filter((item) => item.title && item.url);
-}
-
-async function fetchUpstoxQuote(token: string, instrumentKey: string) {
-  const body = await fetchJson<QuotePayload>(
-    `https://api.upstox.com/v3/market-quote/ltp?instrument_key=${encodeURIComponent(instrumentKey)}`,
-    { headers: upstoxHeaders(token) },
-    20_000
-  );
-  const quote = body.data?.[instrumentKey] || Object.values(body.data || {})[0];
-  return {
-    price: toNumber(quote?.last_price),
-    previousClose: toNumber(quote?.cp),
-    updatedAt: typeof quote?.timestamp === 'string' ? quote.timestamp : undefined
-  };
-}
-
-async function fetchNearestExpiry(token: string, instrumentKey: string) {
+async function fetchNearestExpiry(token: string, instrumentKey: string, now: number) {
   const body = await fetchJson<{ data?: Array<{ expiry?: string }> }>(
     `https://api.upstox.com/v2/option/contract?instrument_key=${encodeURIComponent(instrumentKey)}`,
     { headers: upstoxHeaders(token) },
     30 * 60 * 1000
   );
-  return [...new Set((body.data || []).map((item) => item.expiry).filter((item): item is string => Boolean(item)))].sort()[0];
+  const today = istDateKey(now);
+  return [...new Set((body.data || []).map((item) => item.expiry).filter((item): item is string => Boolean(item) && item! >= today))].sort()[0];
 }
 
-async function fetchUpstoxOptionSnapshot(token: string, instrumentKey: string) {
-  const expiry = await fetchNearestExpiry(token, instrumentKey);
+async function fetchOptionChain(token: string, instrumentKey: string, now: number) {
+  const expiry = await fetchNearestExpiry(token, instrumentKey, now);
   if (!expiry) throw new Error('No active expiry returned');
-  const body = await fetchJson<{ data?: UpstoxStrike[] }>(
+  const fetched = await fetchJsonMeta<{ data?: UpstoxChainRow[] }>(
     `https://api.upstox.com/v2/option/chain?instrument_key=${encodeURIComponent(instrumentKey)}&expiry_date=${encodeURIComponent(expiry)}`,
     { headers: upstoxHeaders(token) },
-    30_000
+    0
   );
-  const rows = body.data || [];
-  if (!rows.length) throw new Error('Option chain is empty');
-  const aggregate = (side: 'call_options' | 'put_options') => rows.reduce(
-    (acc, row) => {
-      const market = row[side]?.market_data;
-      const oi = toNumber(market?.oi) || 0;
-      const prevOi = toNumber(market?.prev_oi) || oi;
-      acc.oi += oi;
-      acc.prevOi += prevOi;
-      return acc;
-    },
-    { oi: 0, prevOi: 0 }
-  );
-  const spot = toNumber(rows[0]?.underlying_spot_price);
-  const atmRow = spot == null
-    ? rows[0]
-    : [...rows].sort((left, right) => Math.abs((left.strike_price || spot) - spot) - Math.abs((right.strike_price || spot) - spot))[0];
-  const call = atmRow?.call_options;
-  const put = atmRow?.put_options;
-  const calls = aggregate('call_options');
-  const puts = aggregate('put_options');
-  const percentChange = (current: number, previous: number) => previous > 0 ? ((current - previous) / previous) * 100 : undefined;
-  const callSpread = spreadPercent(toNumber(call?.market_data?.bid_price), toNumber(call?.market_data?.ask_price));
-  const putSpread = spreadPercent(toNumber(put?.market_data?.bid_price), toNumber(put?.market_data?.ask_price));
-  const callIv = toNumber(call?.option_greeks?.iv);
-  const putIv = toNumber(put?.option_greeks?.iv);
-  return {
-    expiry,
-    spot,
-    pcr: calls.oi > 0 ? puts.oi / calls.oi : undefined,
-    callOiChangePercent: percentChange(calls.oi, calls.prevOi),
-    putOiChangePercent: percentChange(puts.oi, puts.prevOi),
-    atmSpreadPercent: callSpread != null && putSpread != null ? (callSpread + putSpread) / 2 : callSpread ?? putSpread,
-    atmIv: callIv != null && putIv != null ? (callIv + putIv) / 2 : callIv ?? putIv
-  };
+  const rows = fetched.value.data || [];
+  if (!rows.length) throw new Error(`Option chain is empty for ${expiry}`);
+  return { rows, retrievedAt: fetched.retrievedAt, expiry };
 }
 
-function parseCandle(row: unknown[]): Candle | null {
-  const timeValue = typeof row[0] === 'number' ? row[0] : new Date(String(row[0])).getTime();
-  const values = row.slice(1, 6).map(toNumber);
-  if (!Number.isFinite(timeValue) || values.some((value) => value == null)) return null;
-  return {
-    time: timeValue,
-    open: values[0]!,
-    high: values[1]!,
-    low: values[2]!,
-    close: values[3]!,
-    volume: values[4]!
-  };
+/** The session the latest data belongs to: today once it has opened, otherwise the previous trading day. */
+export function latestSessionDate(now: number) {
+  const today = istDateKey(now);
+  if (isTradingDay(today) && now >= sessionBounds(today).open) return today;
+  return previousTradingDay(today);
 }
 
-async function fetchUpstoxCandles(token: string, instrumentKey: string) {
-  const body = await fetchJson<{ data?: { candles?: unknown[][] } }>(
-    `https://api.upstox.com/v3/historical-candle/intraday/${encodeURIComponent(instrumentKey)}/minutes/5`,
-    { headers: upstoxHeaders(token) },
-    30_000
-  );
-  return (body.data?.candles || []).map(parseCandle).filter((item): item is Candle => Boolean(item));
+async function fetchNiftyCandles(token: string, instrumentKey: string, now: number) {
+  const session = latestSessionDate(now);
+  const warmup = previousTradingDay(session);
+  const isToday = session === istDateKey(now);
+  const [current, history] = await Promise.all([
+    isToday ? fetchIntradayCandles(token, instrumentKey, 5) : Promise.resolve([] as Candle[]),
+    fetchHistoricalCandles(token, instrumentKey, warmup, isToday ? warmup : session, 5)
+  ]);
+  const candles = closedCandles([...history, ...current], 5 * 60_000, now)
+    .filter((candle) => [warmup, session].includes(istDateKey(candle.time)));
+  return { candles, session, sessionStart: sessionBounds(session).open };
 }
 
-function indiaDate() {
-  return new Intl.DateTimeFormat('en-CA', {
-    timeZone: 'Asia/Kolkata',
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit'
-  }).format(new Date());
-}
-
-async function fetchUpstoxMaxPain(token: string, instrumentKey: string, expiry: string) {
-  const url = 'https://api.upstox.com/v2/market/max-pain'
-    + `?instrument_key=${encodeURIComponent(instrumentKey)}`
-    + `&expiry=${encodeURIComponent(expiry)}&date=${indiaDate()}&bucket_interval=60`;
-  const body = await fetchJson<{ data?: { max_pain?: number } }>(
-    url,
-    { headers: upstoxHeaders(token) },
-    5 * 60 * 1000
-  );
-  return toNumber(body.data?.max_pain);
-}
-
-async function collectNiftyCard() {
-  const token = process.env.UPSTOX_ANALYTICS_TOKEN || process.env.UPSTOX_ACCESS_TOKEN || '';
+async function collectNiftyCard(now: number, config: ModelConfig): Promise<MarketCard> {
+  const token = upstoxToken();
   const niftyKey = process.env.UPSTOX_NIFTY_KEY || 'NSE_INDEX|Nifty 50';
   const vixKey = process.env.UPSTOX_VIX_KEY || 'NSE_INDEX|India VIX';
   const sources: SourceStatus[] = [];
   const snapshot: NiftySnapshot = {};
   const newsPromise = fetchNiftyNews();
+  const status = marketStatus(now);
 
   if (!token) {
-    sources.push({ name: 'Upstox market desk', status: 'missing', message: 'Add UPSTOX_ANALYTICS_TOKEN for price, candles, VIX and options.' });
+    sources.push({ name: 'Upstox market desk', status: 'missing', message: 'Add UPSTOX_ANALYTICS_TOKEN for price, candles, VIX, options and breadth.' });
     const news = await newsPromise;
     sources.push(...news.statuses);
-    if (news.headlines.length) {
-      snapshot.sentiment = analyseHeadlines(news.headlines);
-      snapshot.updatedAt = new Date().toISOString();
-      await applyAiNews('nifty', snapshot, sources, { marketData: 'unavailable', deterministicNewsScore: snapshot.sentiment.score });
-    } else await applyAiNews('nifty', snapshot, sources, { marketData: 'unavailable' });
-    return scoreNifty(snapshot, sources);
+    if (news.headlines.length) snapshot.sentiment = analyseHeadlines(news.headlines);
+    snapshot.updatedAt = new Date(now).toISOString();
+    await applyAiNews('nifty', snapshot, sources, { marketData: 'unavailable', deterministicNewsScore: snapshot.sentiment?.score });
+    return scoreNifty(snapshot, sources, { config, now });
   }
 
-  const [niftyQuote, vixQuote, optionChain, candles, news, upstoxNews] = await Promise.allSettled([
-    fetchUpstoxQuote(token, niftyKey),
-    fetchUpstoxQuote(token, vixKey),
-    fetchUpstoxOptionSnapshot(token, niftyKey),
-    fetchUpstoxCandles(token, niftyKey),
+  // While the market is open, quotes and candles older than these limits are stale.
+  const liveMaxAge = status.open ? 15 * 60 : undefined;
+  const [quotes, chain, candles, news, upstoxNews, futures, cues, flows] = await Promise.allSettled([
+    fetchLtp(token, [niftyKey, vixKey]),
+    fetchOptionChain(token, niftyKey, now),
+    fetchNiftyCandles(token, niftyKey, now),
     newsPromise,
-    fetchUpstoxNews(token, niftyKey)
+    fetchUpstoxNews(token, niftyKey),
+    fetchNiftyFutures(token, now),
+    fetchGlobalCues(token, now),
+    fetchInstitutionalFlows(token, now)
   ]);
 
-  if (niftyQuote.status === 'fulfilled') {
-    snapshot.spot = niftyQuote.value.price;
-    snapshot.previousClose = niftyQuote.value.previousClose;
-    snapshot.updatedAt = niftyQuote.value.updatedAt;
-    sources.push({ name: 'Upstox NIFTY quote', status: 'live', message: 'Spot and previous close loaded.' });
-  } else sources.push({ name: 'Upstox NIFTY quote', status: 'error', message: errorMessage(niftyQuote.reason, 'Quote failed.') });
-
-  if (vixQuote.status === 'fulfilled') {
-    snapshot.vix = vixQuote.value.price;
-    snapshot.vixPreviousClose = vixQuote.value.previousClose;
-    sources.push({ name: 'Upstox India VIX', status: 'live', message: 'Volatility regime loaded.' });
-  } else sources.push({ name: 'Upstox India VIX', status: 'error', message: errorMessage(vixQuote.reason, 'VIX failed.') });
-
-  if (optionChain.status === 'fulfilled') {
-    const option = optionChain.value;
-    snapshot.spot = snapshot.spot ?? option.spot;
-    snapshot.pcr = option.pcr;
-    snapshot.callOiChangePercent = option.callOiChangePercent;
-    snapshot.putOiChangePercent = option.putOiChangePercent;
-    snapshot.atmSpreadPercent = option.atmSpreadPercent;
-    snapshot.atmIv = option.atmIv;
-    sources.push({ name: 'Upstox option chain', status: 'live', message: `Nearest expiry ${option.expiry} aggregated.` });
-    try {
-      snapshot.maxPain = await fetchUpstoxMaxPain(token, niftyKey, option.expiry);
-      sources.push({ name: 'Upstox max pain', status: 'live', message: 'Expiry max-pain level loaded.' });
-    } catch (error) {
-      sources.push({ name: 'Upstox max pain', status: 'error', message: errorMessage(error, 'Max pain failed.') });
+  let lastCandleClose: number | undefined;
+  if (candles.status === 'fulfilled' && candles.value.candles.length) {
+    const { candles: rows, sessionStart, session } = candles.value;
+    lastCandleClose = rows[rows.length - 1].time + 5 * 60_000;
+    const source = sourceStatus('Upstox 5m candles', `${rows.length} closed candles (session ${session} plus previous-session warm-up).`, { observedAt: lastCandleClose, maxAgeSeconds: liveMaxAge, now });
+    sources.push(source);
+    if (source.status === 'live') {
+      snapshot.technical = calculateTechnicals(rows, { sessionStart });
+      snapshot.sessionOpen = rows.find((candle) => candle.time >= sessionStart)?.open;
     }
   } else {
-    sources.push({ name: 'Upstox option chain', status: 'error', message: errorMessage(optionChain.reason, 'Option chain failed.') });
+    sources.push(candles.status === 'rejected' ? failed('Upstox 5m candles', candles.reason, 'Candles failed.') : { name: 'Upstox 5m candles', status: 'missing', message: 'No candles returned.' });
   }
 
-  if (candles.status === 'fulfilled' && candles.value.length) {
-    snapshot.technical = calculateTechnicals(candles.value);
-    sources.push({ name: 'Upstox 5m candles', status: 'live', message: `${candles.value.length} intraday candles analysed.` });
+  if (quotes.status === 'fulfilled') {
+    const nifty = quotes.value.quotes.get(niftyKey);
+    const vix = quotes.value.quotes.get(vixKey);
+    // LTP has no quote timestamp; the latest closed candle is the freshness proxy during market hours.
+    const quoteSource = sourceStatus('Upstox NIFTY quote', 'Spot and previous close loaded (no provider timestamp; freshness checked via latest candle).', {
+      observedAt: status.open ? lastCandleClose : undefined,
+      retrievedAt: quotes.value.retrievedAt,
+      maxAgeSeconds: liveMaxAge,
+      now
+    });
+    if (nifty?.price && quoteSource.status === 'live') {
+      snapshot.spot = nifty.price;
+      snapshot.previousClose = nifty.previousClose;
+      snapshot.updatedAt = new Date(quotes.value.retrievedAt).toISOString();
+      sources.push(quoteSource);
+    } else sources.push(nifty?.price ? quoteSource : { name: 'Upstox NIFTY quote', status: 'missing', message: 'Quote returned no price.' });
+    if (vix?.price) {
+      snapshot.vix = vix.price;
+      snapshot.vixPreviousClose = vix.previousClose;
+      sources.push(sourceStatus('Upstox India VIX', 'Volatility regime loaded.', { retrievedAt: quotes.value.retrievedAt, now }));
+    } else sources.push({ name: 'Upstox India VIX', status: 'missing', message: 'VIX returned no price.' });
   } else {
-    sources.push({ name: 'Upstox 5m candles', status: 'error', message: candles.status === 'rejected' ? errorMessage(candles.reason, 'Candles failed.') : 'No current-session candles.' });
+    sources.push(failed('Upstox NIFTY quote', quotes.reason, 'Quote failed.'));
   }
+
+  if (chain.status === 'fulfilled') {
+    const { rows, retrievedAt, expiry } = chain.value;
+    const underlyingChange = snapshot.spot != null && snapshot.previousClose != null ? snapshot.spot - snapshot.previousClose : undefined;
+    const analysis = analyseOptionChain(rows, { expiry, now, underlyingChange, elapsedDays: 1 });
+    snapshot.options = analysis.detail;
+    // Never let the chain's spot replace a quote that was rejected as stale.
+    if (!sources.some((source) => source.name === 'Upstox NIFTY quote' && source.status === 'stale')) snapshot.spot = snapshot.spot ?? analysis.spot;
+    snapshot.pcr = analysis.detail.totalPcr ?? undefined;
+    snapshot.maxPain = analysis.detail.maxPain ?? undefined;
+    snapshot.atmIv = analysis.detail.atmIv ?? undefined;
+    snapshot.atmSpreadPercent = analysis.atmSpreadPercent;
+    snapshot.callOiChangePercent = analysis.callOiChangePercent;
+    snapshot.putOiChangePercent = analysis.putOiChangePercent;
+    sources.push(sourceStatus('Upstox option chain', `Expiry ${expiry}: ${analysis.detail.strikesUsed * 2 + 1} near-ATM strikes analysed${analysis.detail.flowAdjusted ? ' (delta/theta-adjusted premiums)' : ' (raw premiums: no spot change available)'}${analysis.rejectedRows ? `, ${analysis.rejectedRows} invalid rows dropped` : ''}.`, { retrievedAt, now }));
+  } else sources.push(failed('Upstox option chain', chain.reason, 'Option chain failed.'));
+
+  const changePct = snapshot.spot && snapshot.previousClose ? ((snapshot.spot - snapshot.previousClose) / snapshot.previousClose) * 100 : undefined;
+  const breadthResult = await fetchNiftyBreadth(token, changePct).then((value) => ({ ok: true as const, value }), (error: unknown) => ({ ok: false as const, error }));
+  if (breadthResult.ok && breadthResult.value.breadth) {
+    const source = sourceStatus('Nifty 50 breadth', `${breadthResult.value.breadth.constituents} constituents quoted (list from ${breadthResult.value.source}).`, {
+      observedAt: breadthResult.value.observedAt,
+      retrievedAt: breadthResult.value.retrievedAt,
+      maxAgeSeconds: liveMaxAge,
+      optional: true,
+      now
+    });
+    sources.push(source);
+    if (source.status === 'live') snapshot.breadth = breadthResult.value.breadth;
+  } else sources.push(failed('Nifty 50 breadth', breadthResult.ok ? new Error('No constituent quotes.') : breadthResult.error, 'Breadth failed.', true));
+
+  if (futures.status === 'fulfilled') {
+    snapshot.futures = futures.value;
+    sources.push(sourceStatus('NIFTY futures (VWAP/volume proxy)', `${futures.value.instrumentKey}: ${futures.value.vwap ? 'session VWAP computed' : 'no session candles yet'}.`, { optional: true, now }));
+  } else sources.push(failed('NIFTY futures (VWAP/volume proxy)', futures.reason, 'Futures failed.', true));
+
+  if (cues.status === 'fulfilled' && cues.value.length) {
+    snapshot.globalCues = cues.value;
+    sources.push(sourceStatus('Upstox global cues', `${cues.value.map((cue) => cue.name).join(', ')} loaded (context only).`, { optional: true, now }));
+  } else sources.push(cues.status === 'rejected' ? failed('Upstox global cues', cues.reason, 'Global cues failed.', true) : { name: 'Upstox global cues', status: 'missing', message: 'No global cues returned.', optional: true });
+
+  if (flows.status === 'fulfilled' && flows.value) {
+    snapshot.institutionalFlows = flows.value;
+    sources.push(sourceStatus('Upstox FII/DII flows', `Cash-market flows for ${flows.value.date} (previous session).`, { optional: true, now }));
+  } else sources.push(flows.status === 'rejected' ? failed('Upstox FII/DII flows', flows.reason, 'Flows failed.', true) : { name: 'Upstox FII/DII flows', status: 'missing', message: 'No published flows.', optional: true });
 
   const rawNews: RawHeadline[] = [];
   if (news.status === 'fulfilled') {
     rawNews.push(...news.value.headlines);
     sources.push(...news.value.statuses);
-  } else sources.push({ name: 'Market news feeds', status: 'error', message: errorMessage(news.reason, 'News failed.'), optional: true });
+  } else sources.push(failed('Market news feeds', news.reason, 'News failed.', true));
   if (upstoxNews.status === 'fulfilled') {
     rawNews.push(...upstoxNews.value);
-    sources.push({ name: 'Upstox instrument news', status: 'live', message: `${upstoxNews.value.length} token-backed headlines loaded.`, optional: true });
-  } else sources.push({ name: 'Upstox instrument news', status: 'error', message: errorMessage(upstoxNews.reason, 'News failed.'), optional: true });
-  if (rawNews.length) snapshot.sentiment = analyseHeadlines(rawNews);
+    sources.push(sourceStatus('Upstox instrument news', `${upstoxNews.value.length} token-backed headlines loaded.`, { optional: true, now }));
+  } else sources.push(failed('Upstox instrument news', upstoxNews.reason, 'News failed.', true));
+  if (rawNews.length) snapshot.sentiment = analyseHeadlines(rawNews, now);
   await applyAiNews('nifty', snapshot, sources, {
     spot: snapshot.spot,
     previousClose: snapshot.previousClose,
     indiaVix: snapshot.vix,
-    pcr: snapshot.pcr,
-    callOiChangePercent: snapshot.callOiChangePercent,
-    putOiChangePercent: snapshot.putOiChangePercent,
+    nearbyPcr: snapshot.options?.nearbyPcr,
+    oiFlow: snapshot.options?.oiFlow,
     atmIv: snapshot.atmIv,
-    maxPain: snapshot.maxPain,
+    advances: snapshot.breadth?.advances,
+    declines: snapshot.breadth?.declines,
     rsi: snapshot.technical?.rsi,
     emaSpreadPct: snapshot.technical?.emaSpreadPct
   });
-  snapshot.updatedAt = snapshot.updatedAt || new Date().toISOString();
-  return scoreNifty(snapshot, sources);
+  snapshot.updatedAt = snapshot.updatedAt || new Date(now).toISOString();
+  return scoreNifty(snapshot, sources, { config, now });
 }
 
+type CoinGeckoGlobal = { data?: { market_cap_change_percentage_24h_usd?: number; market_cap_percentage?: { btc?: number }; updated_at?: number } };
+type BinanceTicker = { symbol?: string; lastPrice?: string; bidPrice?: string; askPrice?: string; priceChangePercent?: string; closeTime?: number };
+type FearGreedResponse = { data?: Array<{ value?: string; value_classification?: string; timestamp?: string }> };
+
 async function fetchBinanceTicker(symbol: string) {
-  const body = await fetchJson<BinanceTicker>(
-    `https://data-api.binance.vision/api/v3/ticker/24hr?symbol=${symbol}`,
-    undefined,
-    20_000
-  );
+  const body = await fetchJson<BinanceTicker>(`https://data-api.binance.vision/api/v3/ticker/24hr?symbol=${symbol}`);
   return {
     price: toNumber(body.lastPrice),
     changePct: toNumber(body.priceChangePercent),
     spreadPct: spreadPercent(toNumber(body.bidPrice), toNumber(body.askPrice)),
-    updatedAt: body.closeTime ? new Date(body.closeTime).toISOString() : undefined
+    observedAt: toNumber(body.closeTime)
   };
 }
 
-async function fetchBinanceCandles() {
-  const rows = await fetchJson<unknown[][]>(
-    'https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=120',
-    undefined,
-    60_000
-  );
-  const now = Date.now();
+export function parseBinanceKlines(rows: unknown[][], now: number): Candle[] {
   return rows
     .filter((row) => Number(row[6]) <= now)
-    .map(parseCandle)
-    .filter((item): item is Candle => Boolean(item));
+    .map((row) => ({
+      time: Number(row[0]),
+      open: toNumber(row[1]) ?? Number.NaN,
+      high: toNumber(row[2]) ?? Number.NaN,
+      low: toNumber(row[3]) ?? Number.NaN,
+      close: toNumber(row[4]) ?? Number.NaN,
+      volume: toNumber(row[5]) ?? 0
+    }));
+}
+
+async function fetchBinanceCandles(now: number) {
+  const rows = await fetchJson<unknown[][]>('https://data-api.binance.vision/api/v3/klines?symbol=BTCUSDT&interval=1h&limit=150');
+  return parseBinanceKlines(rows, now);
 }
 
 function coingeckoHeaders() {
@@ -534,135 +313,159 @@ function coingeckoHeaders() {
 
 async function fetchCryptoGlobal() {
   try {
-    const body = await fetchJson<CoinGeckoGlobal>('https://api.coingecko.com/api/v3/global', { headers: coingeckoHeaders() }, 2 * 60 * 1000);
+    const body = await fetchJson<CoinGeckoGlobal>('https://api.coingecko.com/api/v3/global', { headers: coingeckoHeaders() });
     const marketCapChangePct = toNumber(body.data?.market_cap_change_percentage_24h_usd);
     const btcDominance = toNumber(body.data?.market_cap_percentage?.btc);
     if (marketCapChangePct == null && btcDominance == null) throw new Error('CoinGecko returned no global metrics.');
-    return { marketCapChangePct, btcDominance, source: 'CoinGecko global' };
+    const updated = toNumber(body.data?.updated_at);
+    return { marketCapChangePct, btcDominance, source: 'CoinGecko global', observedAt: updated ? updated * 1000 : undefined };
   } catch {
-    const body = await fetchJson<CoinLoreGlobal[]>('https://api.coinlore.net/api/global/', undefined, 2 * 60 * 1000);
+    const body = await fetchJson<Array<{ btc_d?: string | number }>>('https://api.coinlore.net/api/global/');
     const global = body[0];
     if (!global) throw new Error('CoinLore returned no global metrics.');
-    return {
-      // CoinLore's change figure can materially disagree with CoinGecko's
-      // rolling window, so it must not replace the directional input.
-      marketCapChangePct: undefined,
-      btcDominance: toNumber(global.btc_d),
-      source: 'CoinLore dominance fallback'
-    };
+    // CoinLore's change window disagrees with CoinGecko's, so it never replaces the change input.
+    return { marketCapChangePct: undefined, btcDominance: toNumber(global.btc_d), source: 'CoinLore dominance fallback', observedAt: undefined };
   }
 }
 
+const BASKET = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT', 'DOGEUSDT', 'ADAUSDT', 'TRXUSDT', 'AVAXUSDT', 'LINKUSDT'];
+
 async function fetchCryptoBreadth() {
-  const symbols = ['BTCUSDT', 'ETHUSDT', 'BNBUSDT', 'XRPUSDT', 'SOLUSDT', 'DOGEUSDT', 'ADAUSDT', 'TRXUSDT', 'AVAXUSDT', 'LINKUSDT'];
-  const url = `https://data-api.binance.vision/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(symbols))}`;
-  const body = await fetchJson<BinanceTicker[]>(url, undefined, 60_000);
+  const url = `https://data-api.binance.vision/api/v3/ticker/24hr?symbols=${encodeURIComponent(JSON.stringify(BASKET))}`;
+  const body = await fetchJson<BinanceTicker[]>(url);
   const moves = body.map((ticker) => toNumber(ticker.priceChangePercent)).filter((value): value is number => value != null);
   if (!moves.length) throw new Error('Binance returned no breadth metrics.');
   return { moves, source: 'Binance fixed-basket breadth' };
 }
 
-async function collectCryptoCard() {
+async function collectCryptoCard(now: number, config: ModelConfig): Promise<MarketCard> {
   const sources: SourceStatus[] = [];
   const snapshot: CryptoSnapshot = {};
-  const [tickers, global, topCoins, candles, fearGreed, news] = await Promise.allSettled([
+  const [tickers, global, basket, candles, fearGreed, news, derivatives, book] = await Promise.allSettled([
     Promise.all([fetchBinanceTicker('BTCUSDT'), fetchBinanceTicker('ETHUSDT')]),
     fetchCryptoGlobal(),
     fetchCryptoBreadth(),
-    fetchBinanceCandles(),
-    fetchJson<FearGreedResponse>('https://api.alternative.me/fng/?limit=1&format=json', undefined, 10 * 60 * 1000),
-    fetchCryptoNews()
+    fetchBinanceCandles(now),
+    fetchJson<FearGreedResponse>('https://api.alternative.me/fng/?limit=1&format=json'),
+    fetchCryptoNews(),
+    fetchCryptoDerivatives(),
+    fetchSpotOrderBookImbalance()
   ]);
 
   if (tickers.status === 'fulfilled') {
     const [btc, eth] = tickers.value;
-    snapshot.btcPrice = btc.price;
-    snapshot.btcChangePct = btc.changePct;
-    snapshot.btcSpreadPercent = btc.spreadPct;
-    snapshot.ethPrice = eth.price;
-    snapshot.ethChangePct = eth.changePct;
-    snapshot.ethSpreadPercent = eth.spreadPct;
-    snapshot.updatedAt = btc.updatedAt || eth.updatedAt;
-    sources.push({ name: 'Binance public tickers', status: 'live', message: 'BTC and ETH 24h market data loaded.' });
-  } else sources.push({ name: 'Binance public tickers', status: 'error', message: errorMessage(tickers.reason, 'Ticker fetch failed.') });
+    const source = sourceStatus('Binance public tickers', 'BTC and ETH 24h market data loaded.', { observedAt: btc.observedAt, maxAgeSeconds: 5 * 60, now });
+    sources.push(source);
+    if (source.status === 'live') {
+      snapshot.btcPrice = btc.price;
+      snapshot.btcChangePct = btc.changePct;
+      snapshot.btcSpreadPercent = btc.spreadPct;
+      snapshot.ethPrice = eth.price;
+      snapshot.ethChangePct = eth.changePct;
+      snapshot.ethSpreadPercent = eth.spreadPct;
+      snapshot.updatedAt = new Date(btc.observedAt ?? now).toISOString();
+    }
+  } else sources.push(failed('Binance public tickers', tickers.reason, 'Ticker fetch failed.'));
 
   if (global.status === 'fulfilled') {
     snapshot.marketCapChangePct = global.value.marketCapChangePct;
     snapshot.btcDominance = global.value.btcDominance;
-    const loaded = [
-      snapshot.marketCapChangePct == null ? null : 'market-cap change',
-      snapshot.btcDominance == null ? null : 'BTC dominance'
-    ].filter(Boolean).join(' and ');
-    sources.push({ name: global.value.source, status: 'live', message: `${loaded || 'Global context'} loaded.` });
-  } else sources.push({ name: 'CoinGecko global', status: 'error', message: errorMessage(global.reason, 'Global data failed.') });
+    sources.push(sourceStatus(global.value.source, 'Global context loaded (context only).', { observedAt: global.value.observedAt, maxAgeSeconds: 60 * 60, optional: true, now }));
+  } else sources.push(failed('CoinGecko global', global.reason, 'Global data failed.', true));
 
-  if (topCoins.status === 'fulfilled') {
-    const moves = topCoins.value.moves;
-    if (moves.length) snapshot.breadthPositiveRatio = moves.filter((value) => value > 0).length / moves.length;
-    sources.push({ name: topCoins.value.source, status: 'live', message: `${moves.length} large-cap assets analysed.` });
-  } else sources.push({ name: 'CoinGecko breadth', status: 'error', message: errorMessage(topCoins.reason, 'Breadth failed.') });
+  if (basket.status === 'fulfilled') {
+    const moves = basket.value.moves;
+    snapshot.breadthPositiveRatio = moves.filter((value) => value > 0).length / moves.length;
+    snapshot.basketAverageChangePct = moves.reduce((sum, value) => sum + value, 0) / moves.length;
+    sources.push(sourceStatus(basket.value.source, `${moves.length} large-cap assets analysed.`, { now }));
+  } else sources.push(failed('Binance fixed-basket breadth', basket.reason, 'Breadth failed.'));
 
   if (candles.status === 'fulfilled' && candles.value.length) {
-    snapshot.technical = calculateTechnicals(candles.value);
-    sources.push({ name: 'Binance hourly candles', status: 'live', message: `${candles.value.length} BTC candles analysed.` });
-  } else sources.push({ name: 'Binance hourly candles', status: 'error', message: candles.status === 'rejected' ? errorMessage(candles.reason, 'Candles failed.') : 'No candles returned.' });
+    const rows = candles.value;
+    const lastClose = rows[rows.length - 1].time + 60 * 60_000;
+    const source = sourceStatus('Binance hourly candles', `${rows.length} closed BTC candles analysed.`, { observedAt: lastClose, maxAgeSeconds: 2 * 60 * 60, now });
+    sources.push(source);
+    if (source.status === 'live') {
+      snapshot.technical = calculateTechnicals(rows);
+      snapshot.btcReturn1hPct = returnOverBars(rows, 1);
+      snapshot.btcReturn4hPct = returnOverBars(rows, 4);
+    }
+  } else sources.push(candles.status === 'rejected' ? failed('Binance hourly candles', candles.reason, 'Candles failed.') : { name: 'Binance hourly candles', status: 'missing', message: 'No candles returned.' });
 
-  if (fearGreed.status === 'fulfilled') {
-    snapshot.fearGreed = toNumber(fearGreed.value.data?.[0]?.value);
-    snapshot.fearGreedLabel = fearGreed.value.data?.[0]?.value_classification;
-    sources.push({ name: 'Alternative.me Fear & Greed', status: 'live', message: 'Keyless sentiment gauge loaded.', optional: true });
-  } else sources.push({ name: 'Alternative.me Fear & Greed', status: 'error', message: errorMessage(fearGreed.reason, 'Sentiment gauge failed.'), optional: true });
+  if (fearGreed.status === 'fulfilled' && toNumber(fearGreed.value.data?.[0]?.value) != null) {
+    const row = fearGreed.value.data![0];
+    const observedAt = toNumber(row.timestamp) ? toNumber(row.timestamp)! * 1000 : undefined;
+    const source = sourceStatus('Alternative.me Fear & Greed', 'Daily index loaded (attribution: alternative.me).', { observedAt, maxAgeSeconds: 48 * 60 * 60, optional: true, now });
+    sources.push(source);
+    if (source.status === 'live') {
+      snapshot.fearGreed = toNumber(row.value);
+      snapshot.fearGreedLabel = row.value_classification;
+    }
+  } else sources.push(fearGreed.status === 'rejected' ? failed('Alternative.me Fear & Greed', fearGreed.reason, 'Sentiment gauge failed.', true) : { name: 'Alternative.me Fear & Greed', status: 'missing', message: 'No index value returned.', optional: true });
 
   if (news.status === 'fulfilled') {
-    if (news.value.headlines.length) snapshot.sentiment = analyseHeadlines(news.value.headlines);
+    if (news.value.headlines.length) snapshot.sentiment = analyseHeadlines(news.value.headlines, now);
     sources.push(...news.value.statuses);
-  } else sources.push({ name: 'Crypto news feeds', status: 'error', message: errorMessage(news.reason, 'News failed.'), optional: true });
+  } else sources.push(failed('Crypto news feeds', news.reason, 'News failed.', true));
+
+  if (derivatives.status === 'fulfilled') {
+    snapshot.derivatives = { ...derivatives.value, orderBookImbalance: book.status === 'fulfilled' ? book.value : null };
+    sources.push(sourceStatus(derivatives.value.source, 'Funding, open interest and premium loaded (context only).', { optional: true, now }));
+  } else {
+    if (book.status === 'fulfilled') snapshot.derivatives = { source: 'Binance spot order book', fundingRatePct: null, fundingPercentile: null, openInterest: null, openInterestChangePct: null, basisPct: null, orderBookImbalance: book.value };
+    sources.push(failed('Crypto derivatives', derivatives.reason, 'Derivatives failed.', true));
+  }
 
   if (snapshot.fearGreed == null) {
-    snapshot.fearGreed = calculateMarketMoodProxy(snapshot);
-    if (snapshot.fearGreed != null) {
+    const proxy = calculateMarketMoodProxy(snapshot);
+    if (proxy != null) {
+      snapshot.fearGreed = proxy;
       snapshot.fearGreedLabel = 'Market data proxy';
-      sources.push({
-        name: 'Market mood proxy',
-        status: 'live',
-        message: 'Calculated from live momentum, breadth, technicals and news because the external gauge is unavailable.',
-        optional: true
-      });
+      snapshot.fearGreedIsProxy = true;
+      sources.push({ name: 'Market mood proxy', status: 'live', message: 'Fear & Greed unavailable; a local proxy is shown but not scored (its inputs are already scored).', optional: true });
     }
   }
 
   await applyAiNews('crypto', snapshot, sources, {
     btcPrice: snapshot.btcPrice,
     btcChangePct24h: snapshot.btcChangePct,
+    btcReturn4hPct: snapshot.btcReturn4hPct,
     ethChangePct24h: snapshot.ethChangePct,
-    marketCapChangePct24h: snapshot.marketCapChangePct,
-    btcDominance: snapshot.btcDominance,
     breadthPositiveRatio: snapshot.breadthPositiveRatio,
-    fearGreed: snapshot.fearGreed,
+    fearGreed: snapshot.fearGreedIsProxy ? undefined : snapshot.fearGreed,
+    fundingRatePct: snapshot.derivatives?.fundingRatePct,
     rsi: snapshot.technical?.rsi,
     emaSpreadPct: snapshot.technical?.emaSpreadPct,
     realisedVolatilityPct: snapshot.technical?.volatilityPct
   });
 
-  snapshot.updatedAt = snapshot.updatedAt || new Date().toISOString();
-  return scoreCrypto(snapshot, sources);
+  snapshot.updatedAt = snapshot.updatedAt || new Date(now).toISOString();
+  return scoreCrypto(snapshot, sources, { config, now });
 }
 
-export async function buildDashboard(): Promise<DashboardResponse> {
-  const [nifty, crypto] = await Promise.all([collectNiftyCard(), collectCryptoCard()]);
-  const cards = [nifty, crypto];
-  try {
-    await attachTrackRecords(cards);
-  } catch (error) {
-    console.error('Prediction tracking failed:', error);
+const providerHealth = new Map<string, { failures: number; lastStatus: string; lastMessage: string; lastSuccessAt?: string; lastFailureAt?: string }>();
+
+function trackHealth(cards: MarketCard[]) {
+  for (const source of cards.flatMap((card) => card.sources)) {
+    const entry = providerHealth.get(source.name) ?? { failures: 0, lastStatus: '', lastMessage: '' };
+    entry.lastStatus = source.status;
+    entry.lastMessage = source.message;
+    if (source.status === 'live') entry.lastSuccessAt = source.retrievedAt;
+    else if (source.status === 'error' || source.status === 'stale') {
+      entry.failures += 1;
+      entry.lastFailureAt = new Date().toISOString();
+    }
+    providerHealth.set(source.name, entry);
   }
-  return {
-    generatedAt: new Date().toISOString(),
-    modelVersion: MODEL_VERSION,
-    cards,
-    notes: [
-      'Probabilities are model-implied, not statistically calibrated until enough forward outcomes are collected.',
-      'Signals are research aids, not financial advice; no model can guarantee market direction.'
-    ]
-  };
+}
+
+export function getProviderHealth() {
+  return Object.fromEntries(providerHealth);
+}
+
+export async function buildCards(now = Date.now(), config: ModelConfig = DEFAULT_CONFIG) {
+  const cards = await Promise.all([collectNiftyCard(now, config), collectCryptoCard(now, config)]);
+  for (const card of cards) attachEvents(card, now);
+  trackHealth(cards);
+  return cards;
 }

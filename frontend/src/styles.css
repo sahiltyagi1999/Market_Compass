@@ -126,6 +126,13 @@ a { color: inherit; }
   font-weight: 600;
 }
 .timestamp svg { width: 16px; }
+.countdown {
+  min-width: 3ch;
+  font-size: 11px;
+  font-style: normal;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.7;
+}
 .refresh {
   gap: 7px;
   padding: 10px 14px;
@@ -318,6 +325,48 @@ a { color: inherit; }
 .reason-list b { font-weight: 600; }
 .reason-list em { margin-left: auto; font-style: normal; font-weight: 800; }
 .reason-list p { margin: 0; color: var(--muted); }
+
+.data-warning { display: flex; gap: 10px; margin: 0 0 16px; padding: 12px 14px; border-radius: 14px; color: var(--red); background: var(--red-soft); font-size: 12px; line-height: 1.45; }
+.data-warning svg { flex: 0 0 auto; width: 18px; }
+.data-warning div { display: grid; gap: 3px; }
+.data-warning span { color: var(--ink); overflow-wrap: anywhere; }
+
+.probability-panel { display: grid; gap: 8px; margin: 14px 0 22px; padding: 14px 16px; border: 1px dashed var(--line); border-radius: 16px; }
+.probability-panel small, .event-list small, .track-record small { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.12em; }
+.probability-panel p { margin: 0; font-size: 13px; }
+.probability-panel .calibrated { display: grid; gap: 4px; font-weight: 700; }
+.probability-panel .calibrated em, .heuristic-split { color: var(--muted); font-size: 11px; font-style: normal; font-weight: 500; }
+.probability-panel .unavailable-copy { margin-top: 4px; color: var(--amber); font-weight: 600; }
+
+.reason-list em { overflow-wrap: anywhere; text-align: right; }
+
+.detail-panel { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); font-size: 12px; }
+.detail-panel summary { cursor: pointer; color: var(--ink); font-size: 13px; font-weight: 700; }
+.detail-panel[open] summary { margin-bottom: 10px; }
+.panel-note { margin: 8px 0; color: var(--muted); line-height: 1.5; overflow-wrap: anywhere; }
+.plain-list { display: grid; gap: 6px; margin: 0; padding-left: 16px; line-height: 1.45; overflow-wrap: anywhere; }
+.plain-list b { font-weight: 600; }
+.plain-list .risk-item { color: var(--amber); }
+.mini-table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.mini-table th { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: 0.06em; text-align: left; text-transform: uppercase; }
+.mini-table th, .mini-table td { padding: 6px 4px; border-bottom: 1px solid var(--line); }
+.mini-table td:not(:first-child), .mini-table th:not(:first-child) { text-align: right; }
+
+.event-list { display: grid; gap: 8px; margin-top: 16px; padding-top: 14px; border-top: 1px solid var(--line); }
+.event-list svg { width: 13px; }
+.event-list a { display: grid; gap: 2px; text-decoration: none; font-size: 13px; }
+.event-list a span { color: var(--muted); font-size: 11px; }
+
+.track-record { display: grid; gap: 4px; margin-top: 16px; padding: 14px 16px; border-radius: 16px; background: var(--cream); }
+.track-record p { margin: 0; font-size: 13px; font-weight: 600; }
+.track-record > span { color: var(--muted); font-size: 11px; line-height: 1.45; }
+
+.source-list { display: grid; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.source-list li { display: grid; gap: 2px; padding-left: 10px; border-left: 3px solid var(--green); overflow-wrap: anywhere; }
+.source-list li.error, .source-list li.stale { border-left-color: var(--red); }
+.source-list li.missing { border-left-color: var(--amber); }
+.source-list em { color: var(--muted); font-style: normal; }
+.source-list span { color: var(--muted); font-size: 11px; }
 
 .risk-line { display: flex; align-items: flex-start; gap: 9px; margin-top: 20px; padding-top: 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; line-height: 1.5; }
 .risk-line svg { flex: 0 0 auto; width: 17px; color: var(--amber); }

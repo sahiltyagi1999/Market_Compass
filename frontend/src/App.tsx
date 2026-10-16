@@ -1,126 +1,11 @@
-import { useEffect, useState } from 'react';
-import {
-  Activity,
-  AlertTriangle,
-  ArrowDownRight,
-  ArrowUpRight,
-  Clock3,
-  ExternalLink,
-  Newspaper,
-  RefreshCw,
-  ShieldAlert,
-  Signal,
-  TimerReset
-} from 'lucide-react';
-import type { DashboardResponse, HeadlineSignal, MarketCard, Verdict } from './types';
+import { useEffect, useRef, useState } from 'react';
+import { AlertTriangle, Clock3, ExternalLink, Newspaper, RefreshCw, ShieldAlert, Signal } from 'lucide-react';
+import { MarketCardView } from './components/MarketCardView';
+import { formatClock, formatTime } from './presentation';
+import type { DashboardResponse, HeadlineSignal, MarketCard } from './types';
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
-
-function formatTime(value: string | null) {
-  if (!value) return 'No live timestamp';
-  return new Intl.DateTimeFormat('en-IN', {
-    timeZone: 'Asia/Kolkata',
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit'
-  }).format(new Date(value));
-}
-
-function priceText(card: MarketCard) {
-  if (card.price == null) return 'Not available';
-  return card.slug === 'crypto'
-    ? `$${card.price.toLocaleString('en-US', { maximumFractionDigits: 2 })}`
-    : card.price.toLocaleString('en-IN', { maximumFractionDigits: 2 });
-}
-
-function verdictIcon(verdict: Verdict) {
-  if (verdict === 'BULLISH') return ArrowUpRight;
-  if (verdict === 'BEARISH') return ArrowDownRight;
-  return Activity;
-}
-
-function indiaClock(value: string) {
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'Asia/Kolkata',
-    weekday: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hourCycle: 'h23'
-  }).formatToParts(new Date(value));
-  const read = (type: Intl.DateTimeFormatPartTypes) => parts.find((part) => part.type === type)?.value || '';
-  return {
-    weekday: read('weekday'),
-    minutes: Number(read('hour')) * 60 + Number(read('minute'))
-  };
-}
-
-function niftyMarketOpen(value: string) {
-  const { weekday, minutes } = indiaClock(value);
-  return !['Sat', 'Sun'].includes(weekday) && minutes >= 9 * 60 + 15 && minutes < 15 * 60 + 30;
-}
-
-function signalValidity(card: MarketCard, generatedAt: string) {
-  if (card.slug === 'nifty' && !niftyMarketOpen(generatedAt)) {
-    return {
-      label: 'Market closed',
-      detail: 'Recheck after the next 9:15 AM IST open',
-      expired: true
-    };
-  }
-
-  const generated = new Date(generatedAt);
-  if (card.slug === 'crypto') {
-    return {
-      label: 'Live snapshot, not a locked forecast',
-      detail: `Generated ${formatTime(generatedAt)} IST; confirm again after the next hourly close`,
-      expired: false
-    };
-  }
-
-  const minutesToClose = 15 * 60 + 30 - indiaClock(generatedAt).minutes;
-  const recheckMinutes = Math.max(0, Math.min(120, minutesToClose));
-  return {
-    label: `Recheck by ${formatTime(new Date(generated.getTime() + recheckMinutes * 60 * 1000).toISOString())} IST`,
-    detail: 'Next 2-4 hours, never beyond market close',
-    expired: false
-  };
-}
-
-type Decision = {
-  action: string;
-  copy: string;
-  tone: 'bullish' | 'bearish' | 'neutral';
-};
-
-function researchDecision(card: MarketCard, generatedAt: string): Decision {
-  if (card.availability === 'unavailable' || card.verdict === 'UNAVAILABLE') {
-    return { action: 'WAIT FOR DATA', copy: 'No position until grounded price data returns.', tone: 'neutral' };
-  }
-  if (card.slug === 'nifty' && !niftyMarketOpen(generatedAt)) {
-    return { action: 'WAIT', copy: 'Cash market is closed. Re-evaluate after the next open.', tone: 'neutral' };
-  }
-
-  if (card.trackRecord.resolved < 30 || card.trackRecord.hitRate == null || card.trackRecord.hitRate < 55) {
-    return {
-      action: 'PAPER TRADE ONLY',
-      copy: `This model is not calibrated for entries (${card.trackRecord.resolved}/30 resolved outcomes).`,
-      tone: 'neutral'
-    };
-  }
-
-  if (card.verdict === 'NEUTRAL' || card.confidence < 55) {
-    return { action: 'WAIT / NO TRADE', copy: 'The directional edge is not strong enough yet.', tone: 'neutral' };
-  }
-  if (card.slug === 'nifty') {
-    return card.verdict === 'BULLISH'
-      ? { action: 'BULLISH SETUP', copy: 'Research direction only; confirm entry and risk independently.', tone: 'bullish' }
-      : { action: 'BEARISH SETUP', copy: 'Research direction only; confirm entry and risk independently.', tone: 'bearish' };
-  }
-  return card.verdict === 'BULLISH'
-    ? { action: 'BULLISH SETUP', copy: 'Research direction only; this is not a buy instruction.', tone: 'bullish' }
-    : { action: 'BEARISH SETUP', copy: 'Research direction only; this is not a sell instruction.', tone: 'bearish' };
-}
+const RETRY_MS = 60_000;
 
 function fallbackMeaning(tone: HeadlineSignal['tone'], market: MarketCard['slug']) {
   const marketName = market === 'nifty' ? 'Nifty' : 'crypto';
@@ -143,26 +28,56 @@ export default function App() {
   const [dashboard, setDashboard] = useState<DashboardResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [nextRefreshAt, setNextRefreshAt] = useState(0);
+  const [now, setNow] = useState(() => Date.now());
+  const inFlight = useRef(false);
+  const nextRefreshRef = useRef(0);
 
   async function refresh() {
+    if (inFlight.current) return;
+    inFlight.current = true;
     setLoading(true);
     setError('');
     try {
       const response = await fetch(`${API_BASE_URL}/api/dashboard`);
       if (!response.ok) throw new Error(`API returned ${response.status}`);
-      setDashboard(await response.json());
+      const next: DashboardResponse = await response.json();
+      setDashboard(next);
+      // The server locks a new prediction every 15 minutes; fetch right after it lands.
+      const due = new Date(next.nextUpdateAt).getTime();
+      nextRefreshRef.current = Number.isFinite(due) && due > Date.now() ? due + 3_000 : Date.now() + RETRY_MS;
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Could not load dashboard');
+      nextRefreshRef.current = Date.now() + RETRY_MS;
     } finally {
+      inFlight.current = false;
+      setNextRefreshAt(nextRefreshRef.current);
       setLoading(false);
     }
   }
 
   useEffect(() => {
     void refresh();
-    const timer = window.setInterval(() => void refresh(), 60_000);
-    return () => window.clearInterval(timer);
+    const clock = window.setInterval(() => setNow(Date.now()), 1000);
+    // Background tabs get throttled or frozen, so catch up as soon as the user returns.
+    const catchUp = () => {
+      if (document.visibilityState === 'visible' && Date.now() >= nextRefreshRef.current) void refresh();
+    };
+    document.addEventListener('visibilitychange', catchUp);
+    window.addEventListener('online', catchUp);
+    return () => {
+      window.clearInterval(clock);
+      document.removeEventListener('visibilitychange', catchUp);
+      window.removeEventListener('online', catchUp);
+    };
   }, []);
+
+  useEffect(() => {
+    if (nextRefreshAt && now >= nextRefreshAt) void refresh();
+  }, [now, nextRefreshAt]);
+
+  const secondsToRefresh = Math.max(0, Math.ceil((nextRefreshAt - now) / 1000));
+  const countdown = `${Math.floor(secondsToRefresh / 60)}:${String(secondsToRefresh % 60).padStart(2, '0')}`;
 
   if (!dashboard && loading) {
     return <main className="loading-screen"><Signal className="pulse" /><p>Building the latest market read...</p></main>;
@@ -192,9 +107,10 @@ export default function App() {
           <a href="#news"><Newspaper /> News <span>{visibleNewsCount}</span></a>
         </nav>
         <div className="topbar-actions">
-          <span className="timestamp"><Clock3 /> {formatTime(dashboard.generatedAt)} IST</span>
-          <button className="refresh" onClick={() => void refresh()} disabled={loading}>
+          <span className="timestamp"><Clock3 /> {formatTime(dashboard.generatedAt)} IST · next {formatClock(dashboard.nextUpdateAt)}</span>
+          <button className="refresh" onClick={() => void refresh()} disabled={loading} title="A fresh prediction is built every 15 minutes">
             <RefreshCw className={loading ? 'spin' : ''} /> <span>Refresh</span>
+            <em className="countdown">{loading ? '…' : countdown}</em>
           </button>
         </div>
       </header>
@@ -212,69 +128,11 @@ export default function App() {
 
         <div className="calibration-warning" role="note">
           <ShieldAlert />
-          <div><strong>Experimental research model</strong><span>Paper-trade until at least 30 forward outcomes are resolved. Scores can change and are not win probabilities.</span></div>
+          <div><strong>Experimental, uncalibrated research model</strong><span>Directional score and signal quality are heuristics, not win probabilities. Historical backtests have not shown a reliable edge yet; setups unlock only when the independent forward track record beats its baselines.</span></div>
         </div>
 
         <section className="signal-grid" aria-label="Market signals">
-          {dashboard.cards.map((card) => {
-            const DirectionIcon = verdictIcon(card.verdict);
-            const decision = researchDecision(card, dashboard.generatedAt);
-            const validity = signalValidity(card, dashboard.generatedAt);
-            const reasons = card.evidence.slice(0, 3);
-            return (
-              <article className={`signal-card ${card.slug} ${decision.tone}`} key={card.slug}>
-                <div className="signal-card-head">
-                  <div>
-                    <span className="market-kicker">{card.slug === 'nifty' ? 'INDIA · NIFTY 50' : 'GLOBAL · BITCOIN'}</span>
-                    <h2>{card.slug === 'nifty' ? 'Nifty 50' : 'Bitcoin'}</h2>
-                  </div>
-                  <span className={`feed-state ${card.availability}`}>{card.availability === 'live' ? 'LIVE DATA' : card.availability.toUpperCase()}</span>
-                </div>
-
-                <div className="price-line">
-                  <strong>{priceText(card)}</strong>
-                  <span className={card.priceChangePct == null ? 'muted' : card.priceChangePct >= 0 ? 'positive' : 'negative'}>
-                    {card.priceChangePct == null ? '--' : `${card.priceChangePct >= 0 ? '+' : ''}${card.priceChangePct.toFixed(2)}%`}
-                  </span>
-                </div>
-
-                <div className="direction-read">
-                  <p>Live market snapshot</p>
-                  <div className={`direction-title ${card.verdict.toLowerCase()}`}>
-                    <DirectionIcon />
-                    <strong>{card.verdict}</strong>
-                  </div>
-                  <span>{card.confidence}% input coverage and agreement</span>
-                </div>
-
-                <div className={`action-box ${decision.tone}`}>
-                  <small>RESEARCH POSTURE</small>
-                  <strong>{decision.action}</strong>
-                  <p>{decision.copy}</p>
-                </div>
-
-                <div className={`validity ${validity.expired ? 'expired' : ''}`}>
-                  <TimerReset />
-                  <div><strong>{validity.label}</strong><span>{validity.detail}</span></div>
-                </div>
-
-                <div className="score-readout">
-                  <span>DIRECTIONAL SCORE</span>
-                  <strong>{card.score >= 0 ? '+' : ''}{card.score} / 100</strong>
-                </div>
-                <p className="score-disclaimer">Live composite strength, not a statistically calibrated probability.</p>
-
-                <div className="reason-list">
-                  <small>WHY THIS READ</small>
-                  {reasons.length ? reasons.map((reason) => (
-                    <div key={reason.key}><span className={reason.contribution >= 0 ? 'up' : 'down'} /> <b>{reason.label}</b><em>{reason.value}</em></div>
-                  )) : <p>Grounded reasons are not available yet.</p>}
-                </div>
-
-                <div className="risk-line"><ShieldAlert /> <span>{card.risks[0]}</span></div>
-              </article>
-            );
-          })}
+          {dashboard.cards.map((card) => <MarketCardView card={card} refreshMinutes={dashboard.refreshMinutes} key={card.slug} />)}
         </section>
 
         <section className="news-section" id="news">
@@ -319,7 +177,7 @@ export default function App() {
 
         <footer className="footer-note">
           <ShieldAlert />
-          <p><strong>Research signal, not an order instruction.</strong> Options can multiply losses; confirm price action and define maximum risk before acting. <a href="https://investor.sebi.gov.in/understanding_derivatives.html" target="_blank" rel="noreferrer">SEBI derivatives guidance</a>.</p>
+          <p><strong>Research signal, not an order instruction.</strong> Prediction history: {dashboard.storage.durable ? 'durable storage' : 'not durable on this host (set DATABASE_URL)'}. Options can multiply losses; confirm price action and define maximum risk before acting. <a href="https://investor.sebi.gov.in/understanding_derivatives.html" target="_blank" rel="noreferrer">SEBI derivatives guidance</a>.</p>
         </footer>
       </main>
     </div>

@@ -1,0 +1,3914 @@
+{
+  "meta": {
+    "command": "npm run backtest -w backend -- --market crypto --start 2024-10-10 --end 2026-10-10",
+    "generatedAt": "2026-10-11T06:22:48.955Z",
+    "gitCommit": "7f504d9",
+    "gitDirty": true,
+    "requestedRange": {
+      "start": "2024-10-10T00:00:00.000Z",
+      "end": "2026-10-10T00:00:00.000Z"
+    },
+    "dataSources": [
+      "Binance spot klines (data-api.binance.vision, 1h, closed candles)",
+      "Alternative.me Fear & Greed full history"
+    ],
+    "fingerprints": {
+      "binance BTCUSDT 1h": {
+        "count": 17520,
+        "first": "2024-10-10T00:00:00.000Z",
+        "last": "2026-10-09T23:00:00.000Z",
+        "sha256": "b0aa1e46f647b16ab218d1acc315c5e54fd27651406de3c28eeb5b42ef0ac01f"
+      },
+      "binance ETHUSDT 1h": {
+        "count": 17520,
+        "first": "2024-10-10T00:00:00.000Z",
+        "last": "2026-10-09T23:00:00.000Z",
+        "sha256": "a70c581cf4cb0ef22a2a6717659e7320baa6916d2bcd1cfbd111b2512ad97e92"
+      },
+      "binance BNBUSDT 1h": {
+        "count": 17520,
+        "first": "2024-10-10T00:00:00.000Z",
+        "last": "2026-10-09T23:00:00.000Z",
+        "sha256": "c0bee345f20c71c90c660c6ab9addc33a5b73fa6d56f96cd3aeccaf400719540"
+      },
+      "binance XRPUSDT 1h": {
+        "count": 17520,
+        "first": "2024-10-10T00:00:00.000Z",
+        "last": "2026-10-09T23:00:00.000Z",
+        "sha256": "e0727c454afce0c77fc401974f2399aea4387e38c642fbb3fad290707f772015"
+      },
+      "binance SOLUSDT 1h": {
+        "count": 17520,
+        "first": "2024-10-10T00:00:00.000Z",
+        "last": "2026-10-09T23:00:00.000Z",
+        "sha256": "e2e77df36ad5898c5aa55f76e46866500a83dc85d5743e9135409c74f00a55ad"
+      },
+      "binance DOGEUSDT 1h": {
+        "count": 17520,
+        "first": "2024-10-10T00:00:00.000Z",
+        "last": "2026-10-09T23:00:00.000Z",
+        "sha256": "aab12ac680c8e5109cf34350eb46d80681335491e27cbc593b8f76c33fef382b"
+      },
+      "binance ADAUSDT 1h": {
+        "count": 17520,
+        "first": "2024-10-10T00:00:00.000Z",
+        "last": "2026-10-09T23:00:00.000Z",
+        "sha256": "4b73fe02436d5af8aa8cf9440799768f2b72c657ecd811f661e0ee667889e83c"
+      },
+      "binance TRXUSDT 1h": {
+        "count": 17520,
+        "first": "2024-10-10T00:00:00.000Z",
+        "last": "2026-10-09T23:00:00.000Z",
+        "sha256": "f0aa551ffd90315f0a947374afa9b53488d51ec7916a91021c65e0a1409aafcc"
+      },
+      "binance AVAXUSDT 1h": {
+        "count": 17520,
+        "first": "2024-10-10T00:00:00.000Z",
+        "last": "2026-10-09T23:00:00.000Z",
+        "sha256": "5810a24208463d3823fa0c0451325f823602cf700a9bbf49231021ec1505a080"
+      },
+      "binance LINKUSDT 1h": {
+        "count": 17520,
+        "first": "2024-10-10T00:00:00.000Z",
+        "last": "2026-10-09T23:00:00.000Z",
+        "sha256": "36fd98eaf11e345145f605e764ef303d2b718142d6b0cd4543b1c8c27e445f13"
+      },
+      "alternative.me fear & greed (daily)": {
+        "count": 3169,
+        "first": "2018-02-01T00:00:00.000Z",
+        "last": "2026-10-09T00:00:00.000Z",
+        "sha256": "bd13606bf47926958e6b0d70b737c615a8e6a062f6ce291520ac6f3758da60d3"
+      }
+    },
+    "artifacts": [
+      "docs/backtests/crypto-2024-10-10_2026-10-10.json",
+      "docs/backtests/crypto-2024-10-10_2026-10-10.md",
+      "docs/backtests/crypto-2024-10-10_2026-10-10-reliability-0.2.svg",
+      "docs/backtests/crypto-2024-10-10_2026-10-10-reliability-1.svg"
+    ]
+  },
+  "report": {
+    "market": "crypto",
+    "modelVersion": "research-desk-v4",
+    "definitions": {
+      "outcome": "UP if window return > +t%, DOWN if < -t%, else NEUTRAL (t = outcome threshold).",
+      "evaluationSample": "Greedy chronological non-overlapping windows; every model and baseline is scored on exactly the same windows and labels.",
+      "handSet": "Production scoring formula; verdict threshold (±score) chosen on training rows by balanced accuracy.",
+      "logistic": "Experimental multinomial L2 logistic regression on raw replay features; scaling/imputation/penalty fitted on training rows (penalty via an inner purged chronological split).",
+      "majority": "Always predicts the most frequent class in the training rows.",
+      "alwaysNeutral": "Always predicts NEUTRAL.",
+      "momentum": "Predicts the sign of the previous window return when it exceeds ±t%, else NEUTRAL.",
+      "uniform": "Probability 1/3 for each class.",
+      "empirical": "Training-period class frequencies (Laplace-smoothed) for every window.",
+      "heuristic": "Production uncalibrated bull/neutral/bear split.",
+      "scoreCalibrated": "Score-bin class frequencies fitted on non-overlapping training windows.",
+      "brier": "Standard multiclass Brier score: mean of the sum over 3 classes of (p - y)^2; range 0-2, lower is better; uniform forecast = 0.6667.",
+      "logLoss": "Mean negative natural log of the probability given to the realised class; uniform = ln 3 = 1.0986.",
+      "skill": "Skill = 1 - score / empirical-baseline score; > 0 means better than the training class frequencies.",
+      "macroF1": "Unweighted mean of per-class F1 over classes that occur.",
+      "intervals": "Seeded percentile bootstrap (resampling non-overlapping test windows); paired differences reuse identical resamples."
+    },
+    "settings": {
+      "market": "crypto",
+      "testFraction": 0.2,
+      "developmentBlocks": 5,
+      "outcomeThresholds": [
+        0.1,
+        0.2,
+        0.3,
+        0.5,
+        0.75,
+        1
+      ],
+      "verdictThresholds": [
+        10,
+        15,
+        20,
+        25,
+        30,
+        35,
+        40,
+        50
+      ],
+      "lambdas": [
+        0.001,
+        0.01,
+        0.1,
+        1
+      ],
+      "logisticIterations": 300,
+      "roundTripCostPct": 0.2,
+      "bootstrapIterations": 1000,
+      "horizonMinutes": 360,
+      "defaultOutcomeThreshold": 0.2
+    },
+    "dataset": {
+      "observations": 17455,
+      "excludedUnavailable": 0,
+      "usable": 17455,
+      "development": {
+        "n": 13959,
+        "from": "2024-10-12T12:00:00.000Z",
+        "to": "2026-05-17T08:00:00.000Z"
+      },
+      "test": {
+        "n": 3491,
+        "from": "2026-05-17T08:00:00.000Z",
+        "to": "2026-10-10T00:00:00.000Z"
+      },
+      "purgedAtTestBoundary": 5
+    },
+    "thresholdSensitivity": [
+      {
+        "outcomeThreshold": 0.1,
+        "developmentDistribution": {
+          "UP": 6313,
+          "NEUTRAL": 1611,
+          "DOWN": 6035
+        },
+        "folds": [
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-02-05T19:00:00.000Z",
+              "n": 2786
+            },
+            "evaluationRange": {
+              "from": "2025-02-05T19:00:00.000Z",
+              "to": "2025-06-02T07:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 220,
+              "NEUTRAL": 49,
+              "DOWN": 197
+            },
+            "verdictThreshold": 25,
+            "lambda": 0.001,
+            "macroF1": {
+              "handSet": 0.2788,
+              "logistic": 0.2835,
+              "majority": 0.2138,
+              "alwaysNeutral": 0.0634,
+              "momentum": 0.3411
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3267,
+              "logistic": 0.3432,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3411
+            },
+            "abstentionRate": {
+              "handSet": 0.3627,
+              "logistic": 0,
+              "majority": 0,
+              "alwaysNeutral": 1,
+              "momentum": 0.1052
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.5286,
+              "scoreCalibrated": -0.0036,
+              "logistic": -0.0208,
+              "uniform": -0.1346,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 297,
+              "grossPct": -24.948,
+              "netPct": -58.614
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-06-02T02:00:00.000Z",
+              "n": 5577
+            },
+            "evaluationRange": {
+              "from": "2025-06-02T02:00:00.000Z",
+              "to": "2025-09-26T14:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 202,
+              "NEUTRAL": 69,
+              "DOWN": 195
+            },
+            "verdictThreshold": 35,
+            "lambda": 0.1,
+            "macroF1": {
+              "handSet": 0.2522,
+              "logistic": 0.3055,
+              "majority": 0.2016,
+              "alwaysNeutral": 0.086,
+              "momentum": 0.3661
+            },
+            "balancedAccuracy": {
+              "handSet": 0.2999,
+              "logistic": 0.3361,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3661
+            },
+            "abstentionRate": {
+              "handSet": 0.485,
+              "logistic": 0,
+              "majority": 0,
+              "alwaysNeutral": 1,
+              "momentum": 0.1481
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.4113,
+              "scoreCalibrated": 0.0018,
+              "logistic": 0.0086,
+              "uniform": -0.0779,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 240,
+              "grossPct": 0.557,
+              "netPct": -37.807
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-09-26T09:00:00.000Z",
+              "n": 8368
+            },
+            "evaluationRange": {
+              "from": "2025-09-26T09:00:00.000Z",
+              "to": "2026-01-20T21:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 215,
+              "NEUTRAL": 50,
+              "DOWN": 201
+            },
+            "verdictThreshold": 25,
+            "lambda": 0.001,
+            "macroF1": {
+              "handSet": 0.2826,
+              "logistic": 0.3115,
+              "majority": 0.2105,
+              "alwaysNeutral": 0.0646,
+              "momentum": 0.3532
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3507,
+              "logistic": 0.3305,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3536
+            },
+            "abstentionRate": {
+              "handSet": 0.3734,
+              "logistic": 0,
+              "majority": 0,
+              "alwaysNeutral": 1,
+              "momentum": 0.1094
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.4926,
+              "scoreCalibrated": -0.0139,
+              "logistic": -0.008,
+              "uniform": -0.1306,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 292,
+              "grossPct": -11.26,
+              "netPct": -50.556
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2026-01-20T16:00:00.000Z",
+              "n": 11159
+            },
+            "evaluationRange": {
+              "from": "2026-01-20T16:00:00.000Z",
+              "to": "2026-05-17T04:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 214,
+              "NEUTRAL": 43,
+              "DOWN": 209
+            },
+            "verdictThreshold": 30,
+            "lambda": 0.001,
+            "macroF1": {
+              "handSet": 0.2758,
+              "logistic": 0.3196,
+              "majority": 0.2098,
+              "alwaysNeutral": 0.0563,
+              "momentum": 0.3538
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3815,
+              "logistic": 0.3368,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3538
+            },
+            "abstentionRate": {
+              "handSet": 0.4292,
+              "logistic": 0,
+              "majority": 0,
+              "alwaysNeutral": 1,
+              "momentum": 0.0923
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.4913,
+              "scoreCalibrated": -0.0009,
+              "logistic": -0.0069,
+              "uniform": -0.1481,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 266,
+              "grossPct": -4.063,
+              "netPct": -43.682
+            }
+          }
+        ],
+        "summary": {
+          "meanMacroF1": {
+            "handSet": 0.2723,
+            "logistic": 0.305,
+            "majority": 0.2089,
+            "alwaysNeutral": 0.0676,
+            "momentum": 0.3536
+          },
+          "meanLiftOverBestBaseline": {
+            "handSet": -0.0812,
+            "logistic": -0.0485
+          },
+          "foldsWithPositiveLift": {
+            "handSet": 0,
+            "logistic": 0
+          },
+          "meanBrierSkillVsEmpirical": {
+            "heuristic": -0.4809,
+            "scoreCalibrated": -0.0042,
+            "logistic": -0.0068,
+            "uniform": -0.1228,
+            "empirical": 0
+          }
+        }
+      },
+      {
+        "outcomeThreshold": 0.2,
+        "developmentDistribution": {
+          "UP": 5574,
+          "NEUTRAL": 3135,
+          "DOWN": 5250
+        },
+        "folds": [
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-02-05T19:00:00.000Z",
+              "n": 2786
+            },
+            "evaluationRange": {
+              "from": "2025-02-05T19:00:00.000Z",
+              "to": "2025-06-02T07:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 197,
+              "NEUTRAL": 96,
+              "DOWN": 173
+            },
+            "verdictThreshold": 30,
+            "lambda": 0.001,
+            "macroF1": {
+              "handSet": 0.3029,
+              "logistic": 0.269,
+              "majority": 0.1981,
+              "alwaysNeutral": 0.1139,
+              "momentum": 0.3661
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3395,
+              "logistic": 0.346,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3661
+            },
+            "abstentionRate": {
+              "handSet": 0.4442,
+              "logistic": 0.0193,
+              "majority": 0,
+              "alwaysNeutral": 1,
+              "momentum": 0.206
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.3862,
+              "scoreCalibrated": -0.0106,
+              "logistic": -0.0224,
+              "uniform": -0.039,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 259,
+              "grossPct": -19.788,
+              "netPct": -52.265
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-06-02T02:00:00.000Z",
+              "n": 5577
+            },
+            "evaluationRange": {
+              "from": "2025-06-02T02:00:00.000Z",
+              "to": "2025-09-26T14:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 169,
+              "NEUTRAL": 131,
+              "DOWN": 166
+            },
+            "verdictThreshold": 30,
+            "lambda": 0.1,
+            "macroF1": {
+              "handSet": 0.3031,
+              "logistic": 0.2691,
+              "majority": 0.1774,
+              "alwaysNeutral": 0.1463,
+              "momentum": 0.3901
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3203,
+              "logistic": 0.3317,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3901
+            },
+            "abstentionRate": {
+              "handSet": 0.4227,
+              "logistic": 0.0043,
+              "majority": 0,
+              "alwaysNeutral": 1,
+              "momentum": 0.2811
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.31,
+              "scoreCalibrated": 0.0098,
+              "logistic": 0.0184,
+              "uniform": 0.0092,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 269,
+              "grossPct": 1.981,
+              "netPct": -40.483
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-09-26T09:00:00.000Z",
+              "n": 8368
+            },
+            "evaluationRange": {
+              "from": "2025-09-26T09:00:00.000Z",
+              "to": "2026-01-20T21:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 181,
+              "NEUTRAL": 108,
+              "DOWN": 177
+            },
+            "verdictThreshold": 50,
+            "lambda": 0.001,
+            "macroF1": {
+              "handSet": 0.2534,
+              "logistic": 0.3074,
+              "majority": 0.1865,
+              "alwaysNeutral": 0.1254,
+              "momentum": 0.3482
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3415,
+              "logistic": 0.3359,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3484
+            },
+            "abstentionRate": {
+              "handSet": 0.6609,
+              "logistic": 0.0343,
+              "majority": 0,
+              "alwaysNeutral": 1,
+              "momentum": 0.2339
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.3812,
+              "scoreCalibrated": -0.0061,
+              "logistic": 0.0014,
+              "uniform": -0.0232,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 158,
+              "grossPct": -10.652,
+              "netPct": -34.897
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2026-01-20T16:00:00.000Z",
+              "n": 11159
+            },
+            "evaluationRange": {
+              "from": "2026-01-20T16:00:00.000Z",
+              "to": "2026-05-17T04:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 190,
+              "NEUTRAL": 89,
+              "DOWN": 187
+            },
+            "verdictThreshold": 30,
+            "lambda": 0.001,
+            "macroF1": {
+              "handSet": 0.3022,
+              "logistic": 0.3155,
+              "majority": 0.1931,
+              "alwaysNeutral": 0.1069,
+              "momentum": 0.3192
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3624,
+              "logistic": 0.3448,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3192
+            },
+            "abstentionRate": {
+              "handSet": 0.4292,
+              "logistic": 0.0107,
+              "majority": 0,
+              "alwaysNeutral": 1,
+              "momentum": 0.191
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.3755,
+              "scoreCalibrated": 0.0028,
+              "logistic": 0.0059,
+              "uniform": -0.0432,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 266,
+              "grossPct": -4.063,
+              "netPct": -43.682
+            }
+          }
+        ],
+        "summary": {
+          "meanMacroF1": {
+            "handSet": 0.2904,
+            "logistic": 0.2903,
+            "majority": 0.1888,
+            "alwaysNeutral": 0.1231,
+            "momentum": 0.3559
+          },
+          "meanLiftOverBestBaseline": {
+            "handSet": -0.0655,
+            "logistic": -0.0656
+          },
+          "foldsWithPositiveLift": {
+            "handSet": 0,
+            "logistic": 0
+          },
+          "meanBrierSkillVsEmpirical": {
+            "heuristic": -0.3632,
+            "scoreCalibrated": -0.001,
+            "logistic": 0.0008,
+            "uniform": -0.0241,
+            "empirical": 0
+          }
+        }
+      },
+      {
+        "outcomeThreshold": 0.3,
+        "developmentDistribution": {
+          "UP": 4866,
+          "NEUTRAL": 4521,
+          "DOWN": 4572
+        },
+        "folds": [
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-02-05T19:00:00.000Z",
+              "n": 2786
+            },
+            "evaluationRange": {
+              "from": "2025-02-05T19:00:00.000Z",
+              "to": "2025-06-02T07:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 174,
+              "NEUTRAL": 148,
+              "DOWN": 144
+            },
+            "verdictThreshold": 10,
+            "lambda": 0.001,
+            "macroF1": {
+              "handSet": 0.2828,
+              "logistic": 0.3138,
+              "majority": 0.1812,
+              "alwaysNeutral": 0.1607,
+              "momentum": 0.3561
+            },
+            "balancedAccuracy": {
+              "handSet": 0.2994,
+              "logistic": 0.381,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3561
+            },
+            "abstentionRate": {
+              "handSet": 0.1288,
+              "logistic": 0.2489,
+              "majority": 0,
+              "alwaysNeutral": 1,
+              "momentum": 0.3155
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.3351,
+              "scoreCalibrated": -0.0057,
+              "logistic": -0.0046,
+              "uniform": 0.0007,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 406,
+              "grossPct": -12.797,
+              "netPct": -61.329
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-06-02T02:00:00.000Z",
+              "n": 5577
+            },
+            "evaluationRange": {
+              "from": "2025-06-02T02:00:00.000Z",
+              "to": "2025-09-26T14:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 143,
+              "NEUTRAL": 180,
+              "DOWN": 143
+            },
+            "verdictThreshold": 30,
+            "lambda": 0.1,
+            "macroF1": {
+              "handSet": 0.3201,
+              "logistic": 0.3258,
+              "majority": 0.1565,
+              "alwaysNeutral": 0.1858,
+              "momentum": 0.3654
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3286,
+              "logistic": 0.3776,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3654
+            },
+            "abstentionRate": {
+              "handSet": 0.4227,
+              "logistic": 0.5622,
+              "majority": 0,
+              "alwaysNeutral": 1,
+              "momentum": 0.3884
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.2949,
+              "scoreCalibrated": 0.0134,
+              "logistic": 0.029,
+              "uniform": 0.0151,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 269,
+              "grossPct": 1.981,
+              "netPct": -40.483
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-09-26T09:00:00.000Z",
+              "n": 8368
+            },
+            "evaluationRange": {
+              "from": "2025-09-26T09:00:00.000Z",
+              "to": "2026-01-20T21:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 161,
+              "NEUTRAL": 145,
+              "DOWN": 160
+            },
+            "verdictThreshold": 50,
+            "lambda": 0.001,
+            "macroF1": {
+              "handSet": 0.2819,
+              "logistic": 0.3749,
+              "majority": 0.1712,
+              "alwaysNeutral": 0.1582,
+              "momentum": 0.3557
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3471,
+              "logistic": 0.3918,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3558
+            },
+            "abstentionRate": {
+              "handSet": 0.6609,
+              "logistic": 0.4571,
+              "majority": 0,
+              "alwaysNeutral": 1,
+              "momentum": 0.3133
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.3251,
+              "scoreCalibrated": -0.0009,
+              "logistic": 0.0081,
+              "uniform": 0.0003,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 158,
+              "grossPct": -10.652,
+              "netPct": -34.897
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2026-01-20T16:00:00.000Z",
+              "n": 11159
+            },
+            "evaluationRange": {
+              "from": "2026-01-20T16:00:00.000Z",
+              "to": "2026-05-17T04:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 166,
+              "NEUTRAL": 130,
+              "DOWN": 170
+            },
+            "verdictThreshold": 50,
+            "lambda": 0.001,
+            "macroF1": {
+              "handSet": 0.2543,
+              "logistic": 0.3614,
+              "majority": 0.1751,
+              "alwaysNeutral": 0.1454,
+              "momentum": 0.3383
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3345,
+              "logistic": 0.3659,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3383
+            },
+            "abstentionRate": {
+              "handSet": 0.6159,
+              "logistic": 0.3391,
+              "majority": 0,
+              "alwaysNeutral": 1,
+              "momentum": 0.279
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.3566,
+              "scoreCalibrated": -0.0021,
+              "logistic": 0.0138,
+              "uniform": 0.0006,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 179,
+              "grossPct": 5.981,
+              "netPct": -25.933
+            }
+          }
+        ],
+        "summary": {
+          "meanMacroF1": {
+            "handSet": 0.2848,
+            "logistic": 0.344,
+            "majority": 0.171,
+            "alwaysNeutral": 0.1625,
+            "momentum": 0.3539
+          },
+          "meanLiftOverBestBaseline": {
+            "handSet": -0.0691,
+            "logistic": -0.0099
+          },
+          "foldsWithPositiveLift": {
+            "handSet": 0,
+            "logistic": 2
+          },
+          "meanBrierSkillVsEmpirical": {
+            "heuristic": -0.3279,
+            "scoreCalibrated": 0.0012,
+            "logistic": 0.0116,
+            "uniform": 0.0042,
+            "empirical": 0
+          }
+        }
+      },
+      {
+        "outcomeThreshold": 0.5,
+        "developmentDistribution": {
+          "UP": 3743,
+          "NEUTRAL": 6743,
+          "DOWN": 3473
+        },
+        "folds": [
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-02-05T19:00:00.000Z",
+              "n": 2786
+            },
+            "evaluationRange": {
+              "from": "2025-02-05T19:00:00.000Z",
+              "to": "2025-06-02T07:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 139,
+              "NEUTRAL": 222,
+              "DOWN": 105
+            },
+            "verdictThreshold": 10,
+            "lambda": 0.1,
+            "macroF1": {
+              "handSet": 0.269,
+              "logistic": 0.3366,
+              "majority": 0.2151,
+              "alwaysNeutral": 0.2151,
+              "momentum": 0.4005
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3184,
+              "logistic": 0.3884,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.4006
+            },
+            "abstentionRate": {
+              "handSet": 0.1288,
+              "logistic": 0.7275,
+              "majority": 1,
+              "alwaysNeutral": 1,
+              "momentum": 0.4742
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.3799,
+              "scoreCalibrated": -0.0056,
+              "logistic": 0.0323,
+              "uniform": -0.0443,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 406,
+              "grossPct": -12.797,
+              "netPct": -61.329
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-06-02T02:00:00.000Z",
+              "n": 5577
+            },
+            "evaluationRange": {
+              "from": "2025-06-02T02:00:00.000Z",
+              "to": "2025-09-26T14:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 101,
+              "NEUTRAL": 262,
+              "DOWN": 103
+            },
+            "verdictThreshold": 50,
+            "lambda": 0.1,
+            "macroF1": {
+              "handSet": 0.3257,
+              "logistic": 0.2591,
+              "majority": 0.2399,
+              "alwaysNeutral": 0.2399,
+              "momentum": 0.3754
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3422,
+              "logistic": 0.3407,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3754
+            },
+            "abstentionRate": {
+              "handSet": 0.7597,
+              "logistic": 0.9828,
+              "majority": 1,
+              "alwaysNeutral": 1,
+              "momentum": 0.5622
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.4301,
+              "scoreCalibrated": 0.0077,
+              "logistic": 0.0425,
+              "uniform": -0.0908,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 112,
+              "grossPct": 3.291,
+              "netPct": -17.452
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-09-26T09:00:00.000Z",
+              "n": 8368
+            },
+            "evaluationRange": {
+              "from": "2025-09-26T09:00:00.000Z",
+              "to": "2026-01-20T21:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 118,
+              "NEUTRAL": 224,
+              "DOWN": 124
+            },
+            "verdictThreshold": 50,
+            "lambda": 0.01,
+            "macroF1": {
+              "handSet": 0.3213,
+              "logistic": 0.2861,
+              "majority": 0.2164,
+              "alwaysNeutral": 0.2164,
+              "momentum": 0.3571
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3512,
+              "logistic": 0.3622,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3571
+            },
+            "abstentionRate": {
+              "handSet": 0.6609,
+              "logistic": 0.9056,
+              "majority": 1,
+              "alwaysNeutral": 1,
+              "momentum": 0.4828
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.3769,
+              "scoreCalibrated": -0.0049,
+              "logistic": 0.0206,
+              "uniform": -0.0496,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 158,
+              "grossPct": -10.652,
+              "netPct": -34.897
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2026-01-20T16:00:00.000Z",
+              "n": 11159
+            },
+            "evaluationRange": {
+              "from": "2026-01-20T16:00:00.000Z",
+              "to": "2026-05-17T04:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 130,
+              "NEUTRAL": 211,
+              "DOWN": 125
+            },
+            "verdictThreshold": 50,
+            "lambda": 0.001,
+            "macroF1": {
+              "handSet": 0.3013,
+              "logistic": 0.3241,
+              "majority": 0.2078,
+              "alwaysNeutral": 0.2078,
+              "momentum": 0.3601
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3593,
+              "logistic": 0.3725,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3601
+            },
+            "abstentionRate": {
+              "handSet": 0.6159,
+              "logistic": 0.8305,
+              "majority": 1,
+              "alwaysNeutral": 1,
+              "momentum": 0.4528
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.3942,
+              "scoreCalibrated": 0.0046,
+              "logistic": 0.0321,
+              "uniform": -0.0293,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 179,
+              "grossPct": 5.981,
+              "netPct": -25.933
+            }
+          }
+        ],
+        "summary": {
+          "meanMacroF1": {
+            "handSet": 0.3043,
+            "logistic": 0.3015,
+            "majority": 0.2198,
+            "alwaysNeutral": 0.2198,
+            "momentum": 0.3733
+          },
+          "meanLiftOverBestBaseline": {
+            "handSet": -0.0689,
+            "logistic": -0.0718
+          },
+          "foldsWithPositiveLift": {
+            "handSet": 0,
+            "logistic": 0
+          },
+          "meanBrierSkillVsEmpirical": {
+            "heuristic": -0.3953,
+            "scoreCalibrated": 0.0005,
+            "logistic": 0.0319,
+            "uniform": -0.0535,
+            "empirical": 0
+          }
+        }
+      },
+      {
+        "outcomeThreshold": 0.75,
+        "developmentDistribution": {
+          "UP": 2677,
+          "NEUTRAL": 8814,
+          "DOWN": 2468
+        },
+        "folds": [
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-02-05T19:00:00.000Z",
+              "n": 2786
+            },
+            "evaluationRange": {
+              "from": "2025-02-05T19:00:00.000Z",
+              "to": "2025-06-02T07:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 92,
+              "NEUTRAL": 297,
+              "DOWN": 77
+            },
+            "verdictThreshold": 10,
+            "lambda": 0.1,
+            "macroF1": {
+              "handSet": 0.2291,
+              "logistic": 0.3686,
+              "majority": 0.2595,
+              "alwaysNeutral": 0.2595,
+              "momentum": 0.4078
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3155,
+              "logistic": 0.3979,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.4079
+            },
+            "abstentionRate": {
+              "handSet": 0.1288,
+              "logistic": 0.8755,
+              "majority": 1,
+              "alwaysNeutral": 1,
+              "momentum": 0.6352
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.6516,
+              "scoreCalibrated": -0.0217,
+              "logistic": 0.0279,
+              "uniform": -0.249,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 406,
+              "grossPct": -12.797,
+              "netPct": -61.329
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-06-02T02:00:00.000Z",
+              "n": 5577
+            },
+            "evaluationRange": {
+              "from": "2025-06-02T02:00:00.000Z",
+              "to": "2025-09-26T14:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 64,
+              "NEUTRAL": 340,
+              "DOWN": 62
+            },
+            "verdictThreshold": 50,
+            "lambda": 0.1,
+            "macroF1": {
+              "handSet": 0.3557,
+              "logistic": 0.2812,
+              "majority": 0.2812,
+              "alwaysNeutral": 0.2812,
+              "momentum": 0.3814
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3578,
+              "logistic": 0.3333,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3814
+            },
+            "abstentionRate": {
+              "handSet": 0.7597,
+              "logistic": 1,
+              "majority": 1,
+              "alwaysNeutral": 1,
+              "momentum": 0.7296
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.9158,
+              "scoreCalibrated": 0.0015,
+              "logistic": 0.0744,
+              "uniform": -0.4503,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 112,
+              "grossPct": 3.291,
+              "netPct": -17.452
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-09-26T09:00:00.000Z",
+              "n": 8368
+            },
+            "evaluationRange": {
+              "from": "2025-09-26T09:00:00.000Z",
+              "to": "2026-01-20T21:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 85,
+              "NEUTRAL": 288,
+              "DOWN": 93
+            },
+            "verdictThreshold": 50,
+            "lambda": 0.01,
+            "macroF1": {
+              "handSet": 0.3323,
+              "logistic": 0.2678,
+              "majority": 0.2546,
+              "alwaysNeutral": 0.2546,
+              "momentum": 0.3444
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3467,
+              "logistic": 0.3354,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3444
+            },
+            "abstentionRate": {
+              "handSet": 0.6609,
+              "logistic": 0.9764,
+              "majority": 1,
+              "alwaysNeutral": 1,
+              "momentum": 0.6202
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.6292,
+              "scoreCalibrated": -0.0062,
+              "logistic": 0.0187,
+              "uniform": -0.2195,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 158,
+              "grossPct": -10.652,
+              "netPct": -34.897
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2026-01-20T16:00:00.000Z",
+              "n": 11159
+            },
+            "evaluationRange": {
+              "from": "2026-01-20T16:00:00.000Z",
+              "to": "2026-05-17T04:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 97,
+              "NEUTRAL": 285,
+              "DOWN": 84
+            },
+            "verdictThreshold": 50,
+            "lambda": 1,
+            "macroF1": {
+              "handSet": 0.3,
+              "logistic": 0.274,
+              "majority": 0.253,
+              "alwaysNeutral": 0.253,
+              "momentum": 0.3468
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3506,
+              "logistic": 0.3436,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3468
+            },
+            "abstentionRate": {
+              "handSet": 0.6159,
+              "logistic": 0.9936,
+              "majority": 1,
+              "alwaysNeutral": 1,
+              "momentum": 0.6116
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -0.6825,
+              "scoreCalibrated": 0.0027,
+              "logistic": 0.0267,
+              "uniform": -0.2089,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 179,
+              "grossPct": 5.981,
+              "netPct": -25.933
+            }
+          }
+        ],
+        "summary": {
+          "meanMacroF1": {
+            "handSet": 0.3043,
+            "logistic": 0.2979,
+            "majority": 0.2621,
+            "alwaysNeutral": 0.2621,
+            "momentum": 0.3701
+          },
+          "meanLiftOverBestBaseline": {
+            "handSet": -0.0658,
+            "logistic": -0.0722
+          },
+          "foldsWithPositiveLift": {
+            "handSet": 0,
+            "logistic": 0
+          },
+          "meanBrierSkillVsEmpirical": {
+            "heuristic": -0.7198,
+            "scoreCalibrated": -0.0059,
+            "logistic": 0.0369,
+            "uniform": -0.2819,
+            "empirical": 0
+          }
+        }
+      },
+      {
+        "outcomeThreshold": 1,
+        "developmentDistribution": {
+          "UP": 1908,
+          "NEUTRAL": 10222,
+          "DOWN": 1829
+        },
+        "folds": [
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-02-05T19:00:00.000Z",
+              "n": 2786
+            },
+            "evaluationRange": {
+              "from": "2025-02-05T19:00:00.000Z",
+              "to": "2025-06-02T07:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 65,
+              "NEUTRAL": 342,
+              "DOWN": 59
+            },
+            "verdictThreshold": 35,
+            "lambda": 0.1,
+            "macroF1": {
+              "handSet": 0.3221,
+              "logistic": 0.382,
+              "majority": 0.2822,
+              "alwaysNeutral": 0.2822,
+              "momentum": 0.3838
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3372,
+              "logistic": 0.3956,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3839
+            },
+            "abstentionRate": {
+              "handSet": 0.5343,
+              "logistic": 0.9249,
+              "majority": 1,
+              "alwaysNeutral": 1,
+              "momentum": 0.7318
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -1.0638,
+              "scoreCalibrated": -0.0508,
+              "logistic": 0.0367,
+              "uniform": -0.5469,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 217,
+              "grossPct": -18.32,
+              "netPct": -47.125
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-06-02T02:00:00.000Z",
+              "n": 5577
+            },
+            "evaluationRange": {
+              "from": "2025-06-02T02:00:00.000Z",
+              "to": "2025-09-26T14:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 41,
+              "NEUTRAL": 387,
+              "DOWN": 38
+            },
+            "verdictThreshold": 50,
+            "lambda": 0.01,
+            "macroF1": {
+              "handSet": 0.3598,
+              "logistic": 0.3025,
+              "majority": 0.3025,
+              "alwaysNeutral": 0.3025,
+              "momentum": 0.4025
+            },
+            "balancedAccuracy": {
+              "handSet": 0.375,
+              "logistic": 0.3333,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.4025
+            },
+            "abstentionRate": {
+              "handSet": 0.7597,
+              "logistic": 1,
+              "majority": 1,
+              "alwaysNeutral": 1,
+              "momentum": 0.8305
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -1.7243,
+              "scoreCalibrated": -0.0239,
+              "logistic": 0.0816,
+              "uniform": -1.0673,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 112,
+              "grossPct": 3.291,
+              "netPct": -17.452
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2025-09-26T09:00:00.000Z",
+              "n": 8368
+            },
+            "evaluationRange": {
+              "from": "2025-09-26T09:00:00.000Z",
+              "to": "2026-01-20T21:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 63,
+              "NEUTRAL": 334,
+              "DOWN": 69
+            },
+            "verdictThreshold": 50,
+            "lambda": 0.001,
+            "macroF1": {
+              "handSet": 0.3412,
+              "logistic": 0.2878,
+              "majority": 0.2783,
+              "alwaysNeutral": 0.2783,
+              "momentum": 0.3433
+            },
+            "balancedAccuracy": {
+              "handSet": 0.3506,
+              "logistic": 0.3356,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3433
+            },
+            "abstentionRate": {
+              "handSet": 0.6609,
+              "logistic": 0.985,
+              "majority": 1,
+              "alwaysNeutral": 1,
+              "momentum": 0.7167
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -1.0083,
+              "scoreCalibrated": -0.0042,
+              "logistic": 0.0147,
+              "uniform": -0.4898,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 158,
+              "grossPct": -10.652,
+              "netPct": -34.897
+            }
+          },
+          {
+            "trainRange": {
+              "from": "2024-10-12T12:00:00.000Z",
+              "to": "2026-01-20T16:00:00.000Z",
+              "n": 11159
+            },
+            "evaluationRange": {
+              "from": "2026-01-20T16:00:00.000Z",
+              "to": "2026-05-17T04:00:00.000Z"
+            },
+            "n": 466,
+            "actualDistribution": {
+              "UP": 67,
+              "NEUTRAL": 328,
+              "DOWN": 71
+            },
+            "verdictThreshold": 30,
+            "lambda": 0.1,
+            "macroF1": {
+              "handSet": 0.3024,
+              "logistic": 0.3053,
+              "majority": 0.2754,
+              "alwaysNeutral": 0.2754,
+              "momentum": 0.3651
+            },
+            "balancedAccuracy": {
+              "handSet": 0.35,
+              "logistic": 0.3483,
+              "majority": 0.3333,
+              "alwaysNeutral": 0.3333,
+              "momentum": 0.3651
+            },
+            "abstentionRate": {
+              "handSet": 0.4292,
+              "logistic": 0.9893,
+              "majority": 1,
+              "alwaysNeutral": 1,
+              "momentum": 0.7039
+            },
+            "brierSkillVsEmpirical": {
+              "heuristic": -1.0097,
+              "scoreCalibrated": 0.0076,
+              "logistic": 0.059,
+              "uniform": -0.44,
+              "empirical": 0
+            },
+            "handSetTrading": {
+              "trades": 266,
+              "grossPct": -4.063,
+              "netPct": -43.682
+            }
+          }
+        ],
+        "summary": {
+          "meanMacroF1": {
+            "handSet": 0.3314,
+            "logistic": 0.3194,
+            "majority": 0.2846,
+            "alwaysNeutral": 0.2846,
+            "momentum": 0.3737
+          },
+          "meanLiftOverBestBaseline": {
+            "handSet": -0.0423,
+            "logistic": -0.0543
+          },
+          "foldsWithPositiveLift": {
+            "handSet": 0,
+            "logistic": 0
+          },
+          "meanBrierSkillVsEmpirical": {
+            "heuristic": -1.2015,
+            "scoreCalibrated": -0.0178,
+            "logistic": 0.048,
+            "uniform": -0.636,
+            "empirical": 0
+          }
+        }
+      }
+    ],
+    "selection": {
+      "rule": "Outcome threshold with the highest mean (over walk-forward development folds) hand-set macro-F1 lift over the best classification baseline. A model is called persistently better only if its mean lift > 0 and it beats the best baseline in at least 75% of folds.",
+      "selectedOutcomeThreshold": 1,
+      "selectedByDevelopmentOnly": true,
+      "persistentImprovement": {
+        "handSet": false,
+        "logistic": false
+      }
+    },
+    "finalTest": [
+      {
+        "label": "pre-registered default",
+        "outcomeThreshold": 0.2,
+        "fitted": {
+          "outcomeThreshold": 0.2,
+          "verdictThreshold": 50,
+          "calibrationTrainedOn": 2327,
+          "trainFrequencies": {
+            "UP": 0.39929809482882106,
+            "NEUTRAL": 0.22460965477725253,
+            "DOWN": 0.37609225039392635
+          },
+          "majorityClass": "UP",
+          "trainRange": {
+            "from": "2024-10-12T12:00:00.000Z",
+            "to": "2026-05-17T08:00:00.000Z",
+            "n": 13959
+          },
+          "lambda": 0.1,
+          "logisticTrainedOn": 13959,
+          "logisticCoefficients": {
+            "UP": {
+              "btcChange24h": -0.0173,
+              "ethChange24h": -0.0227,
+              "emaSpreadPct": -0.0161,
+              "rsi": 0.0165,
+              "macdHistogramPct": -0.0028,
+              "momentum12h": -0.0019,
+              "volatilityPct": 0.0392,
+              "atrPct": 0.0679,
+              "efficiencyRatio": 0.0062,
+              "breadthRatio": -0.0123,
+              "basketAverage24h": -0.0113,
+              "fearGreed": 0.0158,
+              "btcReturn1h": -0.0269,
+              "btcReturn4h": -0.0117,
+              "ethMinusBtc24h": -0.0195
+            },
+            "NEUTRAL": {
+              "btcChange24h": -0.0025,
+              "ethChange24h": 0.0156,
+              "emaSpreadPct": -0.0111,
+              "rsi": -0.0077,
+              "macdHistogramPct": -0.0018,
+              "momentum12h": 0.0038,
+              "volatilityPct": -0.0806,
+              "atrPct": -0.1315,
+              "efficiencyRatio": -0.0234,
+              "breadthRatio": 0.0066,
+              "basketAverage24h": 0.014,
+              "fearGreed": 0.0064,
+              "btcReturn1h": 0.0251,
+              "btcReturn4h": -0.0011,
+              "ethMinusBtc24h": 0.0284
+            },
+            "DOWN": {
+              "btcChange24h": 0.0198,
+              "ethChange24h": 0.0071,
+              "emaSpreadPct": 0.0272,
+              "rsi": -0.0088,
+              "macdHistogramPct": 0.0046,
+              "momentum12h": -0.002,
+              "volatilityPct": 0.0414,
+              "atrPct": 0.0636,
+              "efficiencyRatio": 0.0172,
+              "breadthRatio": 0.0058,
+              "basketAverage24h": -0.0027,
+              "fearGreed": -0.0222,
+              "btcReturn1h": 0.0018,
+              "btcReturn4h": 0.0127,
+              "ethMinusBtc24h": -0.0089
+            }
+          }
+        },
+        "result": {
+          "range": {
+            "from": "2026-05-17T08:00:00.000Z",
+            "to": "2026-10-09T20:00:00.000Z"
+          },
+          "n": 582,
+          "classification": {
+            "handSet": {
+              "n": 582,
+              "accuracy": 0.3643,
+              "accuracyCi95": {
+                "low": 0.3262,
+                "high": 0.4041
+              },
+              "balancedAccuracy": 0.3899,
+              "macroF1": 0.3235,
+              "actualDistribution": {
+                "UP": 207,
+                "NEUTRAL": 170,
+                "DOWN": 205
+              },
+              "predictedDistribution": {
+                "UP": 46,
+                "NEUTRAL": 417,
+                "DOWN": 119
+              },
+              "perClass": {
+                "UP": {
+                  "precision": 0.4783,
+                  "recall": 0.1063,
+                  "f1": 0.1739,
+                  "support": 207,
+                  "predicted": 46
+                },
+                "NEUTRAL": {
+                  "precision": 0.3261,
+                  "recall": 0.8,
+                  "f1": 0.4634,
+                  "support": 170,
+                  "predicted": 417
+                },
+                "DOWN": {
+                  "precision": 0.4538,
+                  "recall": 0.2634,
+                  "f1": 0.3333,
+                  "support": 205,
+                  "predicted": 119
+                }
+              },
+              "confusion": {
+                "UP": {
+                  "UP": 22,
+                  "NEUTRAL": 147,
+                  "DOWN": 38
+                },
+                "NEUTRAL": {
+                  "UP": 7,
+                  "NEUTRAL": 136,
+                  "DOWN": 27
+                },
+                "DOWN": {
+                  "UP": 17,
+                  "NEUTRAL": 134,
+                  "DOWN": 54
+                }
+              },
+              "brier": null,
+              "logLoss": null
+            },
+            "logistic": {
+              "n": 582,
+              "accuracy": 0.354,
+              "accuracyCi95": {
+                "low": 0.3162,
+                "high": 0.3936
+              },
+              "balancedAccuracy": 0.3326,
+              "macroF1": 0.2635,
+              "actualDistribution": {
+                "UP": 207,
+                "NEUTRAL": 170,
+                "DOWN": 205
+              },
+              "predictedDistribution": {
+                "UP": 420,
+                "NEUTRAL": 0,
+                "DOWN": 162
+              },
+              "perClass": {
+                "UP": {
+                  "precision": 0.35,
+                  "recall": 0.7101,
+                  "f1": 0.4689,
+                  "support": 207,
+                  "predicted": 420
+                },
+                "NEUTRAL": {
+                  "precision": null,
+                  "recall": 0,
+                  "f1": 0,
+                  "support": 170,
+                  "predicted": 0
+                },
+                "DOWN": {
+                  "precision": 0.3642,
+                  "recall": 0.2878,
+                  "f1": 0.3215,
+                  "support": 205,
+                  "predicted": 162
+                }
+              },
+              "confusion": {
+                "UP": {
+                  "UP": 147,
+                  "NEUTRAL": 0,
+                  "DOWN": 60
+                },
+                "NEUTRAL": {
+                  "UP": 127,
+                  "NEUTRAL": 0,
+                  "DOWN": 43
+                },
+                "DOWN": {
+                  "UP": 146,
+                  "NEUTRAL": 0,
+                  "DOWN": 59
+                }
+              },
+              "brier": null,
+              "logLoss": null
+            },
+            "majority": {
+              "n": 582,
+              "accuracy": 0.3557,
+              "accuracyCi95": {
+                "low": 0.3178,
+                "high": 0.3954
+              },
+              "balancedAccuracy": 0.3333,
+              "macroF1": 0.1749,
+              "actualDistribution": {
+                "UP": 207,
+                "NEUTRAL": 170,
+                "DOWN": 205
+              },
+              "predictedDistribution": {
+                "UP": 582,
+                "NEUTRAL": 0,
+                "DOWN": 0
+              },
+              "perClass": {
+                "UP": {
+                  "precision": 0.3557,
+                  "recall": 1,
+                  "f1": 0.5247,
+                  "support": 207,
+                  "predicted": 582
+                },
+                "NEUTRAL": {
+                  "precision": null,
+                  "recall": 0,
+                  "f1": 0,
+                  "support": 170,
+                  "predicted": 0
+                },
+                "DOWN": {
+                  "precision": null,
+                  "recall": 0,
+                  "f1": 0,
+                  "support": 205,
+                  "predicted": 0
+                }
+              },
+              "confusion": {
+                "UP": {
+                  "UP": 207,
+                  "NEUTRAL": 0,
+                  "DOWN": 0
+                },
+                "NEUTRAL": {
+                  "UP": 170,
+                  "NEUTRAL": 0,
+                  "DOWN": 0
+                },
+                "DOWN": {
+                  "UP": 205,
+                  "NEUTRAL": 0,
+                  "DOWN": 0
+                }
+              },
+              "brier": null,
+              "logLoss": null
+            },
+            "alwaysNeutral": {
+              "n": 582,
+              "accuracy": 0.2921,
+              "accuracyCi95": {
+                "low": 0.2566,
+                "high": 0.3303
+              },
+              "balancedAccuracy": 0.3333,
+              "macroF1": 0.1507,
+              "actualDistribution": {
+                "UP": 207,
+                "NEUTRAL": 170,
+                "DOWN": 205
+              },
+              "predictedDistribution": {
+                "UP": 0,
+                "NEUTRAL": 582,
+                "DOWN": 0
+              },
+              "perClass": {
+                "UP": {
+                  "precision": null,
+                  "recall": 0,
+                  "f1": 0,
+                  "support": 207,
+                  "predicted": 0
+                },
+                "NEUTRAL": {
+                  "precision": 0.2921,
+                  "recall": 1,
+                  "f1": 0.4521,
+                  "support": 170,
+                  "predicted": 582
+                },
+                "DOWN": {
+                  "precision": null,
+                  "recall": 0,
+                  "f1": 0,
+                  "support": 205,
+                  "predicted": 0
+                }
+              },
+              "confusion": {
+                "UP": {
+                  "UP": 0,
+                  "NEUTRAL": 207,
+                  "DOWN": 0
+                },
+                "NEUTRAL": {
+                  "UP": 0,
+                  "NEUTRAL": 170,
+                  "DOWN": 0
+                },
+                "DOWN": {
+                  "UP": 0,
+                  "NEUTRAL": 205,
+                  "DOWN": 0
+                }
+              },
+              "brier": null,
+              "logLoss": null
+            },
+            "momentum": {
+              "n": 582,
+              "accuracy": 0.3763,
+              "accuracyCi95": {
+                "low": 0.3379,
+                "high": 0.4163
+              },
+              "balancedAccuracy": 0.3756,
+              "macroF1": 0.3757,
+              "actualDistribution": {
+                "UP": 207,
+                "NEUTRAL": 170,
+                "DOWN": 205
+              },
+              "predictedDistribution": {
+                "UP": 208,
+                "NEUTRAL": 170,
+                "DOWN": 204
+              },
+              "perClass": {
+                "UP": {
+                  "precision": 0.3654,
+                  "recall": 0.3671,
+                  "f1": 0.3663,
+                  "support": 207,
+                  "predicted": 208
+                },
+                "NEUTRAL": {
+                  "precision": 0.3647,
+                  "recall": 0.3647,
+                  "f1": 0.3647,
+                  "support": 170,
+                  "predicted": 170
+                },
+                "DOWN": {
+                  "precision": 0.3971,
+                  "recall": 0.3951,
+                  "f1": 0.3961,
+                  "support": 205,
+                  "predicted": 204
+                }
+              },
+              "confusion": {
+                "UP": {
+                  "UP": 76,
+                  "NEUTRAL": 58,
+                  "DOWN": 73
+                },
+                "NEUTRAL": {
+                  "UP": 58,
+                  "NEUTRAL": 62,
+                  "DOWN": 50
+                },
+                "DOWN": {
+                  "UP": 74,
+                  "NEUTRAL": 50,
+                  "DOWN": 81
+                }
+              },
+              "brier": null,
+              "logLoss": null
+            }
+          },
+          "abstentionRate": {
+            "handSet": 0.7165,
+            "logistic": 0,
+            "majority": 0,
+            "alwaysNeutral": 1,
+            "momentum": 0.2921
+          },
+          "probability": {
+            "heuristic": {
+              "n": 582,
+              "brier": 0.8201,
+              "logLoss": 1.9436,
+              "reliability": 0.1631,
+              "resolution": 0.0091,
+              "uncertainty": 0.6641,
+              "reliabilityBins": {
+                "UP": [
+                  {
+                    "lower": 0,
+                    "upper": 0.1,
+                    "n": 197,
+                    "meanForecast": 0.0344,
+                    "observedFrequency": 0.3553
+                  },
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 91,
+                    "meanForecast": 0.1438,
+                    "observedFrequency": 0.3736
+                  },
+                  {
+                    "lower": 0.2,
+                    "upper": 0.3,
+                    "n": 75,
+                    "meanForecast": 0.2316,
+                    "observedFrequency": 0.3333
+                  },
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 54,
+                    "meanForecast": 0.345,
+                    "observedFrequency": 0.3148
+                  },
+                  {
+                    "lower": 0.4,
+                    "upper": 0.5,
+                    "n": 43,
+                    "meanForecast": 0.4379,
+                    "observedFrequency": 0.2558
+                  },
+                  {
+                    "lower": 0.5,
+                    "upper": 0.6,
+                    "n": 27,
+                    "meanForecast": 0.55,
+                    "observedFrequency": 0.3333
+                  },
+                  {
+                    "lower": 0.6,
+                    "upper": 0.7,
+                    "n": 21,
+                    "meanForecast": 0.6429,
+                    "observedFrequency": 0.381
+                  },
+                  {
+                    "lower": 0.7,
+                    "upper": 0.8,
+                    "n": 30,
+                    "meanForecast": 0.7337,
+                    "observedFrequency": 0.3667
+                  },
+                  {
+                    "lower": 0.8,
+                    "upper": 0.9,
+                    "n": 37,
+                    "meanForecast": 0.8678,
+                    "observedFrequency": 0.5135
+                  },
+                  {
+                    "lower": 0.9,
+                    "upper": 1,
+                    "n": 7,
+                    "meanForecast": 0.9,
+                    "observedFrequency": 0.4286
+                  }
+                ],
+                "NEUTRAL": [
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 164,
+                    "meanForecast": 0.1163,
+                    "observedFrequency": 0.2073
+                  },
+                  {
+                    "lower": 0.2,
+                    "upper": 0.3,
+                    "n": 81,
+                    "meanForecast": 0.2399,
+                    "observedFrequency": 0.3457
+                  },
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 91,
+                    "meanForecast": 0.3437,
+                    "observedFrequency": 0.3187
+                  },
+                  {
+                    "lower": 0.4,
+                    "upper": 0.5,
+                    "n": 144,
+                    "meanForecast": 0.4474,
+                    "observedFrequency": 0.3125
+                  },
+                  {
+                    "lower": 0.5,
+                    "upper": 0.6,
+                    "n": 102,
+                    "meanForecast": 0.5286,
+                    "observedFrequency": 0.3333
+                  }
+                ],
+                "DOWN": [
+                  {
+                    "lower": 0,
+                    "upper": 0.1,
+                    "n": 111,
+                    "meanForecast": 0.0419,
+                    "observedFrequency": 0.3243
+                  },
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 108,
+                    "meanForecast": 0.1498,
+                    "observedFrequency": 0.3426
+                  },
+                  {
+                    "lower": 0.2,
+                    "upper": 0.3,
+                    "n": 75,
+                    "meanForecast": 0.2308,
+                    "observedFrequency": 0.2933
+                  },
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 35,
+                    "meanForecast": 0.3457,
+                    "observedFrequency": 0.3143
+                  },
+                  {
+                    "lower": 0.4,
+                    "upper": 0.5,
+                    "n": 40,
+                    "meanForecast": 0.4388,
+                    "observedFrequency": 0.425
+                  },
+                  {
+                    "lower": 0.5,
+                    "upper": 0.6,
+                    "n": 39,
+                    "meanForecast": 0.5523,
+                    "observedFrequency": 0.359
+                  },
+                  {
+                    "lower": 0.6,
+                    "upper": 0.7,
+                    "n": 27,
+                    "meanForecast": 0.6367,
+                    "observedFrequency": 0.2963
+                  },
+                  {
+                    "lower": 0.7,
+                    "upper": 0.8,
+                    "n": 38,
+                    "meanForecast": 0.7492,
+                    "observedFrequency": 0.2895
+                  },
+                  {
+                    "lower": 0.8,
+                    "upper": 0.9,
+                    "n": 95,
+                    "meanForecast": 0.8717,
+                    "observedFrequency": 0.4632
+                  },
+                  {
+                    "lower": 0.9,
+                    "upper": 1,
+                    "n": 14,
+                    "meanForecast": 0.9,
+                    "observedFrequency": 0.3571
+                  }
+                ]
+              }
+            },
+            "scoreCalibrated": {
+              "n": 582,
+              "brier": 0.675,
+              "logLoss": 1.1121,
+              "reliability": 0.0091,
+              "resolution": 0.0011,
+              "uncertainty": 0.6641,
+              "reliabilityBins": {
+                "UP": [
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 227,
+                    "meanForecast": 0.3606,
+                    "observedFrequency": 0.3833
+                  },
+                  {
+                    "lower": 0.4,
+                    "upper": 0.5,
+                    "n": 355,
+                    "meanForecast": 0.4249,
+                    "observedFrequency": 0.338
+                  }
+                ],
+                "NEUTRAL": [
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 138,
+                    "meanForecast": 0.1897,
+                    "observedFrequency": 0.2464
+                  },
+                  {
+                    "lower": 0.2,
+                    "upper": 0.3,
+                    "n": 444,
+                    "meanForecast": 0.2441,
+                    "observedFrequency": 0.3063
+                  }
+                ],
+                "DOWN": [
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 518,
+                    "meanForecast": 0.3623,
+                    "observedFrequency": 0.3514
+                  },
+                  {
+                    "lower": 0.4,
+                    "upper": 0.5,
+                    "n": 64,
+                    "meanForecast": 0.4232,
+                    "observedFrequency": 0.3594
+                  }
+                ]
+              }
+            },
+            "logistic": {
+              "n": 582,
+              "brier": 0.6612,
+              "logLoss": 1.089,
+              "reliability": 0.0071,
+              "resolution": 0.008,
+              "uncertainty": 0.6641,
+              "reliabilityBins": {
+                "UP": [
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 404,
+                    "meanForecast": 0.3705,
+                    "observedFrequency": 0.349
+                  },
+                  {
+                    "lower": 0.4,
+                    "upper": 0.5,
+                    "n": 172,
+                    "meanForecast": 0.4226,
+                    "observedFrequency": 0.3605
+                  },
+                  {
+                    "lower": 0.5,
+                    "upper": 0.6,
+                    "n": 6,
+                    "meanForecast": 0.5505,
+                    "observedFrequency": 0.6667
+                  }
+                ],
+                "NEUTRAL": [
+                  {
+                    "lower": 0,
+                    "upper": 0.1,
+                    "n": 5,
+                    "meanForecast": 0.0804,
+                    "observedFrequency": 0.2
+                  },
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 80,
+                    "meanForecast": 0.1712,
+                    "observedFrequency": 0.175
+                  },
+                  {
+                    "lower": 0.2,
+                    "upper": 0.3,
+                    "n": 451,
+                    "meanForecast": 0.2494,
+                    "observedFrequency": 0.2927
+                  },
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 46,
+                    "meanForecast": 0.3156,
+                    "observedFrequency": 0.5
+                  }
+                ],
+                "DOWN": [
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 508,
+                    "meanForecast": 0.3611,
+                    "observedFrequency": 0.3406
+                  },
+                  {
+                    "lower": 0.4,
+                    "upper": 0.5,
+                    "n": 72,
+                    "meanForecast": 0.4273,
+                    "observedFrequency": 0.4444
+                  },
+                  {
+                    "lower": 0.5,
+                    "upper": 0.6,
+                    "n": 2,
+                    "meanForecast": 0.5029,
+                    "observedFrequency": 0
+                  }
+                ]
+              }
+            },
+            "uniform": {
+              "n": 582,
+              "brier": 0.6667,
+              "logLoss": 1.0986,
+              "reliability": 0.0026,
+              "resolution": 0,
+              "uncertainty": 0.6641,
+              "reliabilityBins": {
+                "UP": [
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 582,
+                    "meanForecast": 0.3333,
+                    "observedFrequency": 0.3557
+                  }
+                ],
+                "NEUTRAL": [
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 582,
+                    "meanForecast": 0.3333,
+                    "observedFrequency": 0.2921
+                  }
+                ],
+                "DOWN": [
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 582,
+                    "meanForecast": 0.3333,
+                    "observedFrequency": 0.3522
+                  }
+                ]
+              }
+            },
+            "empirical": {
+              "n": 582,
+              "brier": 0.6711,
+              "logLoss": 1.1072,
+              "reliability": 0.007,
+              "resolution": 0,
+              "uncertainty": 0.6641,
+              "reliabilityBins": {
+                "UP": [
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 582,
+                    "meanForecast": 0.3993,
+                    "observedFrequency": 0.3557
+                  }
+                ],
+                "NEUTRAL": [
+                  {
+                    "lower": 0.2,
+                    "upper": 0.3,
+                    "n": 582,
+                    "meanForecast": 0.2246,
+                    "observedFrequency": 0.2921
+                  }
+                ],
+                "DOWN": [
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 582,
+                    "meanForecast": 0.3761,
+                    "observedFrequency": 0.3522
+                  }
+                ]
+              }
+            }
+          },
+          "brierSkillVsEmpirical": {
+            "heuristic": -0.222,
+            "scoreCalibrated": -0.0058,
+            "logistic": 0.0148,
+            "uniform": 0.0066,
+            "empirical": 0
+          },
+          "logLossSkillVsEmpirical": {
+            "heuristic": -0.7554,
+            "scoreCalibrated": -0.0044,
+            "logistic": 0.0164,
+            "uniform": 0.0078,
+            "empirical": 0
+          },
+          "discrimination": {
+            "handSetScore": {
+              "up": 0.5101,
+              "down": 0.5365
+            },
+            "logistic": {
+              "up": 0.5169,
+              "down": 0.5477
+            }
+          },
+          "intervals": {
+            "macroF1": {
+              "handSet": {
+                "estimate": 0.3235,
+                "low": 0.2855,
+                "high": 0.36,
+                "iterations": 1000
+              },
+              "logistic": {
+                "estimate": 0.2635,
+                "low": 0.2332,
+                "high": 0.2927,
+                "iterations": 1000
+              },
+              "majority": {
+                "estimate": 0.1749,
+                "low": 0.1608,
+                "high": 0.1882,
+                "iterations": 1000
+              },
+              "alwaysNeutral": {
+                "estimate": 0.1507,
+                "low": 0.1344,
+                "high": 0.1641,
+                "iterations": 1000
+              },
+              "momentum": {
+                "estimate": 0.3757,
+                "low": 0.3365,
+                "high": 0.416,
+                "iterations": 1000
+              }
+            },
+            "balancedAccuracy": {
+              "handSet": {
+                "estimate": 0.3899,
+                "low": 0.3603,
+                "high": 0.4229,
+                "iterations": 1000
+              },
+              "logistic": {
+                "estimate": 0.3326,
+                "low": 0.3013,
+                "high": 0.3624,
+                "iterations": 1000
+              },
+              "majority": {
+                "estimate": 0.3333,
+                "low": 0.3333,
+                "high": 0.3333,
+                "iterations": 1000
+              },
+              "alwaysNeutral": {
+                "estimate": 0.3333,
+                "low": 0.3333,
+                "high": 0.3333,
+                "iterations": 1000
+              },
+              "momentum": {
+                "estimate": 0.3756,
+                "low": 0.3374,
+                "high": 0.4162,
+                "iterations": 1000
+              }
+            },
+            "macroF1Lift": {
+              "handSet-majority": {
+                "estimate": 0.1486,
+                "low": 0.1056,
+                "high": 0.1911,
+                "iterations": 1000
+              },
+              "handSet-alwaysNeutral": {
+                "estimate": 0.1728,
+                "low": 0.1363,
+                "high": 0.2093,
+                "iterations": 1000
+              },
+              "handSet-momentum": {
+                "estimate": -0.0522,
+                "low": -0.1001,
+                "high": -0.0097,
+                "iterations": 1000
+              },
+              "logistic-majority": {
+                "estimate": 0.0886,
+                "low": 0.0609,
+                "high": 0.1155,
+                "iterations": 1000
+              },
+              "logistic-alwaysNeutral": {
+                "estimate": 0.1128,
+                "low": 0.0761,
+                "high": 0.1485,
+                "iterations": 1000
+              },
+              "logistic-momentum": {
+                "estimate": -0.1122,
+                "low": -0.1693,
+                "high": -0.0626,
+                "iterations": 1000
+              }
+            },
+            "brierDifferenceVsEmpirical": {
+              "heuristic": {
+                "estimate": 0.149,
+                "low": 0.1032,
+                "high": 0.1939,
+                "iterations": 1000
+              },
+              "scoreCalibrated": {
+                "estimate": 0.0038,
+                "low": -0.0017,
+                "high": 0.0091,
+                "iterations": 1000
+              },
+              "logistic": {
+                "estimate": -0.01,
+                "low": -0.0163,
+                "high": -0.0036,
+                "iterations": 1000
+              },
+              "uniform": {
+                "estimate": -0.0045,
+                "low": -0.016,
+                "high": 0.0083,
+                "iterations": 1000
+              }
+            }
+          },
+          "trading": {
+            "rules": "One decision per non-overlapping window; BULLISH long, BEARISH short, NEUTRAL flat; entry at decision close, exit at target close; 100% equity, compounded; flat round-trip cost.",
+            "strategies": {
+              "handSet": {
+                "windows": 582,
+                "trades": 165,
+                "longs": 46,
+                "shorts": 119,
+                "winRate": 0.4606,
+                "averageWinPct": 0.9553,
+                "averageLossPct": -0.8148,
+                "profitFactor": 1.0012,
+                "compoundedReturnPct": -1.164,
+                "additiveReturnPct": 0.09,
+                "grossCompoundedReturnPct": 37.438,
+                "maxDrawdownPct": 18.812,
+                "perTradeMeanPct": 0.0005,
+                "perTradeStdevPct": 1.2434,
+                "exposure": 0.2835,
+                "turnover": 330,
+                "costPerRoundTripPct": 0.2,
+                "totalCostsPct": 33
+              },
+              "logistic": {
+                "windows": 582,
+                "trades": 582,
+                "longs": 420,
+                "shorts": 162,
+                "winRate": 0.354,
+                "averageWinPct": 0.5877,
+                "averageLossPct": -0.7137,
+                "profitFactor": 0.4511,
+                "compoundedReturnPct": -77.731,
+                "additiveReturnPct": -147.302,
+                "grossCompoundedReturnPct": -28.543,
+                "maxDrawdownPct": 77.731,
+                "perTradeMeanPct": -0.2531,
+                "perTradeStdevPct": 0.9607,
+                "exposure": 1,
+                "turnover": 1164,
+                "costPerRoundTripPct": 0.2,
+                "totalCostsPct": 116.4
+              },
+              "momentum": {
+                "windows": 582,
+                "trades": 412,
+                "longs": 208,
+                "shorts": 204,
+                "winRate": 0.3811,
+                "averageWinPct": 0.8001,
+                "averageLossPct": -0.6626,
+                "profitFactor": 0.7434,
+                "compoundedReturnPct": -36.623,
+                "additiveReturnPct": -43.35,
+                "grossCompoundedReturnPct": 44.493,
+                "maxDrawdownPct": 41.35,
+                "perTradeMeanPct": -0.1052,
+                "perTradeStdevPct": 1.0429,
+                "exposure": 0.7079,
+                "turnover": 824,
+                "costPerRoundTripPct": 0.2,
+                "totalCostsPct": 82.4
+              }
+            },
+            "benchmarks": {
+              "noTrade": {
+                "windows": 582,
+                "trades": 0,
+                "longs": 0,
+                "shorts": 0,
+                "winRate": null,
+                "averageWinPct": null,
+                "averageLossPct": null,
+                "profitFactor": null,
+                "compoundedReturnPct": 0,
+                "additiveReturnPct": 0,
+                "grossCompoundedReturnPct": 0,
+                "maxDrawdownPct": 0,
+                "perTradeMeanPct": null,
+                "perTradeStdevPct": null,
+                "exposure": 0,
+                "turnover": 0,
+                "costPerRoundTripPct": 0.2,
+                "totalCostsPct": 0
+              },
+              "alwaysLongSameWindows": {
+                "windows": 582,
+                "trades": 582,
+                "longs": 582,
+                "shorts": 0,
+                "winRate": 0.3557,
+                "averageWinPct": 0.675,
+                "averageLossPct": -0.662,
+                "profitFactor": 0.5628,
+                "compoundedReturnPct": -67.153,
+                "additiveReturnPct": -108.53,
+                "grossCompoundedReturnPct": 5.317,
+                "maxDrawdownPct": 67.153,
+                "perTradeMeanPct": -0.1865,
+                "perTradeStdevPct": 0.9621,
+                "exposure": 1,
+                "turnover": 1164,
+                "costPerRoundTripPct": 0.2,
+                "totalCostsPct": 116.4
+              },
+              "buyAndHoldPct": 5.117
+            },
+            "costSensitivity": [
+              {
+                "costPct": 0,
+                "handSetNetPct": 37.438,
+                "handSetMaxDrawdownPct": 10.719,
+                "momentumNetPct": 44.493
+              },
+              {
+                "costPct": 0.05,
+                "handSetNetPct": 26.572,
+                "handSetMaxDrawdownPct": 12.767,
+                "momentumNetPct": 17.608
+              },
+              {
+                "costPct": 0.1,
+                "handSetNetPct": 16.559,
+                "handSetMaxDrawdownPct": 14.799,
+                "momentumNetPct": -4.285
+              },
+              {
+                "costPct": 0.2,
+                "handSetNetPct": -1.164,
+                "handSetMaxDrawdownPct": 18.812,
+                "momentumNetPct": -36.623
+              },
+              {
+                "costPct": 0.3,
+                "handSetNetPct": -16.207,
+                "handSetMaxDrawdownPct": 25.16,
+                "momentumNetPct": -58.053
+              }
+            ]
+          }
+        }
+      },
+      {
+        "label": "selected on development folds",
+        "outcomeThreshold": 1,
+        "fitted": {
+          "outcomeThreshold": 1,
+          "verdictThreshold": 50,
+          "calibrationTrainedOn": 2327,
+          "trainFrequencies": {
+            "UP": 0.13672826242658645,
+            "NEUTRAL": 0.7322016903022489,
+            "DOWN": 0.13107004727116459
+          },
+          "majorityClass": "NEUTRAL",
+          "trainRange": {
+            "from": "2024-10-12T12:00:00.000Z",
+            "to": "2026-05-17T08:00:00.000Z",
+            "n": 13959
+          },
+          "lambda": 0.1,
+          "logisticTrainedOn": 13959,
+          "logisticCoefficients": {
+            "UP": {
+              "btcChange24h": -0.0352,
+              "ethChange24h": -0.0325,
+              "emaSpreadPct": -0.0073,
+              "rsi": 0.0573,
+              "macdHistogramPct": 0.0032,
+              "momentum12h": -0.006,
+              "volatilityPct": 0.0545,
+              "atrPct": 0.1011,
+              "efficiencyRatio": 0.0196,
+              "breadthRatio": -0.001,
+              "basketAverage24h": -0.0208,
+              "fearGreed": -0.0057,
+              "btcReturn1h": -0.0132,
+              "btcReturn4h": -0.0152,
+              "ethMinusBtc24h": -0.0171
+            },
+            "NEUTRAL": {
+              "btcChange24h": 0.0096,
+              "ethChange24h": 0.0306,
+              "emaSpreadPct": -0.0179,
+              "rsi": -0.0355,
+              "macdHistogramPct": -0.0008,
+              "momentum12h": 0.0055,
+              "volatilityPct": -0.1204,
+              "atrPct": -0.151,
+              "efficiencyRatio": -0.0111,
+              "breadthRatio": 0.0127,
+              "basketAverage24h": 0.0287,
+              "fearGreed": 0.0411,
+              "btcReturn1h": 0.0275,
+              "btcReturn4h": 0.0053,
+              "ethMinusBtc24h": 0.0407
+            },
+            "DOWN": {
+              "btcChange24h": 0.0257,
+              "ethChange24h": 0.0019,
+              "emaSpreadPct": 0.0252,
+              "rsi": -0.0218,
+              "macdHistogramPct": -0.0023,
+              "momentum12h": 0.0005,
+              "volatilityPct": 0.0659,
+              "atrPct": 0.0499,
+              "efficiencyRatio": -0.0085,
+              "breadthRatio": -0.0117,
+              "basketAverage24h": -0.008,
+              "fearGreed": -0.0353,
+              "btcReturn1h": -0.0143,
+              "btcReturn4h": 0.0099,
+              "ethMinusBtc24h": -0.0236
+            }
+          }
+        },
+        "result": {
+          "range": {
+            "from": "2026-05-17T08:00:00.000Z",
+            "to": "2026-10-09T20:00:00.000Z"
+          },
+          "n": 582,
+          "classification": {
+            "handSet": {
+              "n": 582,
+              "accuracy": 0.6649,
+              "accuracyCi95": {
+                "low": 0.6256,
+                "high": 0.7021
+              },
+              "balancedAccuracy": 0.4472,
+              "macroF1": 0.4293,
+              "actualDistribution": {
+                "UP": 63,
+                "NEUTRAL": 463,
+                "DOWN": 56
+              },
+              "predictedDistribution": {
+                "UP": 46,
+                "NEUTRAL": 417,
+                "DOWN": 119
+              },
+              "perClass": {
+                "UP": {
+                  "precision": 0.3043,
+                  "recall": 0.2222,
+                  "f1": 0.2569,
+                  "support": 63,
+                  "predicted": 46
+                },
+                "NEUTRAL": {
+                  "precision": 0.8465,
+                  "recall": 0.7624,
+                  "f1": 0.8023,
+                  "support": 463,
+                  "predicted": 417
+                },
+                "DOWN": {
+                  "precision": 0.1681,
+                  "recall": 0.3571,
+                  "f1": 0.2286,
+                  "support": 56,
+                  "predicted": 119
+                }
+              },
+              "confusion": {
+                "UP": {
+                  "UP": 14,
+                  "NEUTRAL": 36,
+                  "DOWN": 13
+                },
+                "NEUTRAL": {
+                  "UP": 24,
+                  "NEUTRAL": 353,
+                  "DOWN": 86
+                },
+                "DOWN": {
+                  "UP": 8,
+                  "NEUTRAL": 28,
+                  "DOWN": 20
+                }
+              },
+              "brier": null,
+              "logLoss": null
+            },
+            "logistic": {
+              "n": 582,
+              "accuracy": 0.7938,
+              "accuracyCi95": {
+                "low": 0.7591,
+                "high": 0.8247
+              },
+              "balancedAccuracy": 0.3372,
+              "macroF1": 0.305,
+              "actualDistribution": {
+                "UP": 63,
+                "NEUTRAL": 463,
+                "DOWN": 56
+              },
+              "predictedDistribution": {
+                "UP": 3,
+                "NEUTRAL": 579,
+                "DOWN": 0
+              },
+              "perClass": {
+                "UP": {
+                  "precision": 0.3333,
+                  "recall": 0.0159,
+                  "f1": 0.0303,
+                  "support": 63,
+                  "predicted": 3
+                },
+                "NEUTRAL": {
+                  "precision": 0.7962,
+                  "recall": 0.9957,
+                  "f1": 0.8848,
+                  "support": 463,
+                  "predicted": 579
+                },
+                "DOWN": {
+                  "precision": null,
+                  "recall": 0,
+                  "f1": 0,
+                  "support": 56,
+                  "predicted": 0
+                }
+              },
+              "confusion": {
+                "UP": {
+                  "UP": 1,
+                  "NEUTRAL": 62,
+                  "DOWN": 0
+                },
+                "NEUTRAL": {
+                  "UP": 2,
+                  "NEUTRAL": 461,
+                  "DOWN": 0
+                },
+                "DOWN": {
+                  "UP": 0,
+                  "NEUTRAL": 56,
+                  "DOWN": 0
+                }
+              },
+              "brier": null,
+              "logLoss": null
+            },
+            "majority": {
+              "n": 582,
+              "accuracy": 0.7955,
+              "accuracyCi95": {
+                "low": 0.7609,
+                "high": 0.8263
+              },
+              "balancedAccuracy": 0.3333,
+              "macroF1": 0.2954,
+              "actualDistribution": {
+                "UP": 63,
+                "NEUTRAL": 463,
+                "DOWN": 56
+              },
+              "predictedDistribution": {
+                "UP": 0,
+                "NEUTRAL": 582,
+                "DOWN": 0
+              },
+              "perClass": {
+                "UP": {
+                  "precision": null,
+                  "recall": 0,
+                  "f1": 0,
+                  "support": 63,
+                  "predicted": 0
+                },
+                "NEUTRAL": {
+                  "precision": 0.7955,
+                  "recall": 1,
+                  "f1": 0.8861,
+                  "support": 463,
+                  "predicted": 582
+                },
+                "DOWN": {
+                  "precision": null,
+                  "recall": 0,
+                  "f1": 0,
+                  "support": 56,
+                  "predicted": 0
+                }
+              },
+              "confusion": {
+                "UP": {
+                  "UP": 0,
+                  "NEUTRAL": 63,
+                  "DOWN": 0
+                },
+                "NEUTRAL": {
+                  "UP": 0,
+                  "NEUTRAL": 463,
+                  "DOWN": 0
+                },
+                "DOWN": {
+                  "UP": 0,
+                  "NEUTRAL": 56,
+                  "DOWN": 0
+                }
+              },
+              "brier": null,
+              "logLoss": null
+            },
+            "alwaysNeutral": {
+              "n": 582,
+              "accuracy": 0.7955,
+              "accuracyCi95": {
+                "low": 0.7609,
+                "high": 0.8263
+              },
+              "balancedAccuracy": 0.3333,
+              "macroF1": 0.2954,
+              "actualDistribution": {
+                "UP": 63,
+                "NEUTRAL": 463,
+                "DOWN": 56
+              },
+              "predictedDistribution": {
+                "UP": 0,
+                "NEUTRAL": 582,
+                "DOWN": 0
+              },
+              "perClass": {
+                "UP": {
+                  "precision": null,
+                  "recall": 0,
+                  "f1": 0,
+                  "support": 63,
+                  "predicted": 0
+                },
+                "NEUTRAL": {
+                  "precision": 0.7955,
+                  "recall": 1,
+                  "f1": 0.8861,
+                  "support": 463,
+                  "predicted": 582
+                },
+                "DOWN": {
+                  "precision": null,
+                  "recall": 0,
+                  "f1": 0,
+                  "support": 56,
+                  "predicted": 0
+                }
+              },
+              "confusion": {
+                "UP": {
+                  "UP": 0,
+                  "NEUTRAL": 63,
+                  "DOWN": 0
+                },
+                "NEUTRAL": {
+                  "UP": 0,
+                  "NEUTRAL": 463,
+                  "DOWN": 0
+                },
+                "DOWN": {
+                  "UP": 0,
+                  "NEUTRAL": 56,
+                  "DOWN": 0
+                }
+              },
+              "brier": null,
+              "logLoss": null
+            },
+            "momentum": {
+              "n": 582,
+              "accuracy": 0.6804,
+              "accuracyCi95": {
+                "low": 0.6414,
+                "high": 0.717
+              },
+              "balancedAccuracy": 0.3753,
+              "macroF1": 0.3753,
+              "actualDistribution": {
+                "UP": 63,
+                "NEUTRAL": 463,
+                "DOWN": 56
+              },
+              "predictedDistribution": {
+                "UP": 63,
+                "NEUTRAL": 463,
+                "DOWN": 56
+              },
+              "perClass": {
+                "UP": {
+                  "precision": 0.2222,
+                  "recall": 0.2222,
+                  "f1": 0.2222,
+                  "support": 63,
+                  "predicted": 63
+                },
+                "NEUTRAL": {
+                  "precision": 0.8143,
+                  "recall": 0.8143,
+                  "f1": 0.8143,
+                  "support": 463,
+                  "predicted": 463
+                },
+                "DOWN": {
+                  "precision": 0.0893,
+                  "recall": 0.0893,
+                  "f1": 0.0893,
+                  "support": 56,
+                  "predicted": 56
+                }
+              },
+              "confusion": {
+                "UP": {
+                  "UP": 14,
+                  "NEUTRAL": 43,
+                  "DOWN": 6
+                },
+                "NEUTRAL": {
+                  "UP": 41,
+                  "NEUTRAL": 377,
+                  "DOWN": 45
+                },
+                "DOWN": {
+                  "UP": 8,
+                  "NEUTRAL": 43,
+                  "DOWN": 5
+                }
+              },
+              "brier": null,
+              "logLoss": null
+            }
+          },
+          "abstentionRate": {
+            "handSet": 0.7165,
+            "logistic": 0.9948,
+            "majority": 1,
+            "alwaysNeutral": 1,
+            "momentum": 0.7955
+          },
+          "probability": {
+            "heuristic": {
+              "n": 582,
+              "brier": 0.8243,
+              "logLoss": 1.507,
+              "reliability": 0.4907,
+              "resolution": 0.0145,
+              "uncertainty": 0.3462,
+              "reliabilityBins": {
+                "UP": [
+                  {
+                    "lower": 0,
+                    "upper": 0.1,
+                    "n": 197,
+                    "meanForecast": 0.0344,
+                    "observedFrequency": 0.1168
+                  },
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 91,
+                    "meanForecast": 0.1438,
+                    "observedFrequency": 0.0549
+                  },
+                  {
+                    "lower": 0.2,
+                    "upper": 0.3,
+                    "n": 75,
+                    "meanForecast": 0.2316,
+                    "observedFrequency": 0.0933
+                  },
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 54,
+                    "meanForecast": 0.345,
+                    "observedFrequency": 0.0741
+                  },
+                  {
+                    "lower": 0.4,
+                    "upper": 0.5,
+                    "n": 43,
+                    "meanForecast": 0.4379,
+                    "observedFrequency": 0.0233
+                  },
+                  {
+                    "lower": 0.5,
+                    "upper": 0.6,
+                    "n": 27,
+                    "meanForecast": 0.55,
+                    "observedFrequency": 0.0741
+                  },
+                  {
+                    "lower": 0.6,
+                    "upper": 0.7,
+                    "n": 21,
+                    "meanForecast": 0.6429,
+                    "observedFrequency": 0.1905
+                  },
+                  {
+                    "lower": 0.7,
+                    "upper": 0.8,
+                    "n": 30,
+                    "meanForecast": 0.7337,
+                    "observedFrequency": 0.1
+                  },
+                  {
+                    "lower": 0.8,
+                    "upper": 0.9,
+                    "n": 37,
+                    "meanForecast": 0.8678,
+                    "observedFrequency": 0.2973
+                  },
+                  {
+                    "lower": 0.9,
+                    "upper": 1,
+                    "n": 7,
+                    "meanForecast": 0.9,
+                    "observedFrequency": 0.4286
+                  }
+                ],
+                "NEUTRAL": [
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 164,
+                    "meanForecast": 0.1163,
+                    "observedFrequency": 0.6646
+                  },
+                  {
+                    "lower": 0.2,
+                    "upper": 0.3,
+                    "n": 81,
+                    "meanForecast": 0.2399,
+                    "observedFrequency": 0.8025
+                  },
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 91,
+                    "meanForecast": 0.3437,
+                    "observedFrequency": 0.8242
+                  },
+                  {
+                    "lower": 0.4,
+                    "upper": 0.5,
+                    "n": 144,
+                    "meanForecast": 0.4474,
+                    "observedFrequency": 0.8819
+                  },
+                  {
+                    "lower": 0.5,
+                    "upper": 0.6,
+                    "n": 102,
+                    "meanForecast": 0.5286,
+                    "observedFrequency": 0.8529
+                  }
+                ],
+                "DOWN": [
+                  {
+                    "lower": 0,
+                    "upper": 0.1,
+                    "n": 111,
+                    "meanForecast": 0.0419,
+                    "observedFrequency": 0.1261
+                  },
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 108,
+                    "meanForecast": 0.1498,
+                    "observedFrequency": 0.0278
+                  },
+                  {
+                    "lower": 0.2,
+                    "upper": 0.3,
+                    "n": 75,
+                    "meanForecast": 0.2308,
+                    "observedFrequency": 0.0667
+                  },
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 35,
+                    "meanForecast": 0.3457,
+                    "observedFrequency": 0.0857
+                  },
+                  {
+                    "lower": 0.4,
+                    "upper": 0.5,
+                    "n": 40,
+                    "meanForecast": 0.4388,
+                    "observedFrequency": 0.125
+                  },
+                  {
+                    "lower": 0.5,
+                    "upper": 0.6,
+                    "n": 39,
+                    "meanForecast": 0.5523,
+                    "observedFrequency": 0.1026
+                  },
+                  {
+                    "lower": 0.6,
+                    "upper": 0.7,
+                    "n": 27,
+                    "meanForecast": 0.6367,
+                    "observedFrequency": 0.0741
+                  },
+                  {
+                    "lower": 0.7,
+                    "upper": 0.8,
+                    "n": 38,
+                    "meanForecast": 0.7492,
+                    "observedFrequency": 0.0789
+                  },
+                  {
+                    "lower": 0.8,
+                    "upper": 0.9,
+                    "n": 95,
+                    "meanForecast": 0.8717,
+                    "observedFrequency": 0.1684
+                  },
+                  {
+                    "lower": 0.9,
+                    "upper": 1,
+                    "n": 14,
+                    "meanForecast": 0.9,
+                    "observedFrequency": 0.0714
+                  }
+                ]
+              }
+            },
+            "scoreCalibrated": {
+              "n": 582,
+              "brier": 0.3553,
+              "logLoss": 0.6645,
+              "reliability": 0.0085,
+              "resolution": 0.0021,
+              "uncertainty": 0.3462,
+              "reliabilityBins": {
+                "UP": [
+                  {
+                    "lower": 0,
+                    "upper": 0.1,
+                    "n": 105,
+                    "meanForecast": 0.0925,
+                    "observedFrequency": 0.0762
+                  },
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 477,
+                    "meanForecast": 0.1512,
+                    "observedFrequency": 0.1153
+                  }
+                ],
+                "NEUTRAL": [
+                  {
+                    "lower": 0.6,
+                    "upper": 0.7,
+                    "n": 138,
+                    "meanForecast": 0.6358,
+                    "observedFrequency": 0.7174
+                  },
+                  {
+                    "lower": 0.7,
+                    "upper": 0.8,
+                    "n": 444,
+                    "meanForecast": 0.7472,
+                    "observedFrequency": 0.8198
+                  }
+                ],
+                "DOWN": [
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 582,
+                    "meanForecast": 0.1386,
+                    "observedFrequency": 0.0962
+                  }
+                ]
+              }
+            },
+            "logistic": {
+              "n": 582,
+              "brier": 0.3413,
+              "logLoss": 0.6383,
+              "reliability": 0.006,
+              "resolution": 0.0082,
+              "uncertainty": 0.3462,
+              "reliabilityBins": {
+                "UP": [
+                  {
+                    "lower": 0,
+                    "upper": 0.1,
+                    "n": 155,
+                    "meanForecast": 0.0884,
+                    "observedFrequency": 0.0645
+                  },
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 403,
+                    "meanForecast": 0.1247,
+                    "observedFrequency": 0.1191
+                  },
+                  {
+                    "lower": 0.2,
+                    "upper": 0.3,
+                    "n": 17,
+                    "meanForecast": 0.2403,
+                    "observedFrequency": 0.1176
+                  },
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 6,
+                    "meanForecast": 0.345,
+                    "observedFrequency": 0.3333
+                  },
+                  {
+                    "lower": 0.4,
+                    "upper": 0.5,
+                    "n": 1,
+                    "meanForecast": 0.4073,
+                    "observedFrequency": 1
+                  }
+                ],
+                "NEUTRAL": [
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 4,
+                    "meanForecast": 0.3404,
+                    "observedFrequency": 0.5
+                  },
+                  {
+                    "lower": 0.4,
+                    "upper": 0.5,
+                    "n": 10,
+                    "meanForecast": 0.4686,
+                    "observedFrequency": 0.7
+                  },
+                  {
+                    "lower": 0.5,
+                    "upper": 0.6,
+                    "n": 7,
+                    "meanForecast": 0.5656,
+                    "observedFrequency": 0.7143
+                  },
+                  {
+                    "lower": 0.6,
+                    "upper": 0.7,
+                    "n": 52,
+                    "meanForecast": 0.6703,
+                    "observedFrequency": 0.6154
+                  },
+                  {
+                    "lower": 0.7,
+                    "upper": 0.8,
+                    "n": 365,
+                    "meanForecast": 0.7623,
+                    "observedFrequency": 0.8
+                  },
+                  {
+                    "lower": 0.8,
+                    "upper": 0.9,
+                    "n": 144,
+                    "meanForecast": 0.8218,
+                    "observedFrequency": 0.8681
+                  }
+                ],
+                "DOWN": [
+                  {
+                    "lower": 0,
+                    "upper": 0.1,
+                    "n": 132,
+                    "meanForecast": 0.0892,
+                    "observedFrequency": 0.053
+                  },
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 429,
+                    "meanForecast": 0.1241,
+                    "observedFrequency": 0.1119
+                  },
+                  {
+                    "lower": 0.2,
+                    "upper": 0.3,
+                    "n": 21,
+                    "meanForecast": 0.2416,
+                    "observedFrequency": 0.0476
+                  }
+                ]
+              }
+            },
+            "uniform": {
+              "n": 582,
+              "brier": 0.6667,
+              "logLoss": 1.0986,
+              "reliability": 0.3205,
+              "resolution": 0,
+              "uncertainty": 0.3462,
+              "reliabilityBins": {
+                "UP": [
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 582,
+                    "meanForecast": 0.3333,
+                    "observedFrequency": 0.1082
+                  }
+                ],
+                "NEUTRAL": [
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 582,
+                    "meanForecast": 0.3333,
+                    "observedFrequency": 0.7955
+                  }
+                ],
+                "DOWN": [
+                  {
+                    "lower": 0.3,
+                    "upper": 0.4,
+                    "n": 582,
+                    "meanForecast": 0.3333,
+                    "observedFrequency": 0.0962
+                  }
+                ]
+              }
+            },
+            "empirical": {
+              "n": 582,
+              "brier": 0.3522,
+              "logLoss": 0.6589,
+              "reliability": 0.006,
+              "resolution": 0,
+              "uncertainty": 0.3462,
+              "reliabilityBins": {
+                "UP": [
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 582,
+                    "meanForecast": 0.1367,
+                    "observedFrequency": 0.1082
+                  }
+                ],
+                "NEUTRAL": [
+                  {
+                    "lower": 0.7,
+                    "upper": 0.8,
+                    "n": 582,
+                    "meanForecast": 0.7322,
+                    "observedFrequency": 0.7955
+                  }
+                ],
+                "DOWN": [
+                  {
+                    "lower": 0.1,
+                    "upper": 0.2,
+                    "n": 582,
+                    "meanForecast": 0.1311,
+                    "observedFrequency": 0.0962
+                  }
+                ]
+              }
+            }
+          },
+          "brierSkillVsEmpirical": {
+            "heuristic": -1.3404,
+            "scoreCalibrated": -0.0088,
+            "logistic": 0.0309,
+            "uniform": -0.893,
+            "empirical": 0
+          },
+          "logLossSkillVsEmpirical": {
+            "heuristic": -1.2871,
+            "scoreCalibrated": -0.0085,
+            "logistic": 0.0313,
+            "uniform": -0.6673,
+            "empirical": 0
+          },
+          "discrimination": {
+            "handSetScore": {
+              "up": 0.5448,
+              "down": 0.5539
+            },
+            "logistic": {
+              "up": 0.6379,
+              "down": 0.575
+            }
+          },
+          "intervals": {
+            "macroF1": {
+              "handSet": {
+                "estimate": 0.4293,
+                "low": 0.3794,
+                "high": 0.4781,
+                "iterations": 1000
+              },
+              "logistic": {
+                "estimate": 0.305,
+                "low": 0.29,
+                "high": 0.3291,
+                "iterations": 1000
+              },
+              "majority": {
+                "estimate": 0.2954,
+                "low": 0.2889,
+                "high": 0.3017,
+                "iterations": 1000
+              },
+              "alwaysNeutral": {
+                "estimate": 0.2954,
+                "low": 0.2889,
+                "high": 0.3017,
+                "iterations": 1000
+              },
+              "momentum": {
+                "estimate": 0.3753,
+                "low": 0.3307,
+                "high": 0.4169,
+                "iterations": 1000
+              }
+            },
+            "balancedAccuracy": {
+              "handSet": {
+                "estimate": 0.4472,
+                "low": 0.3937,
+                "high": 0.5052,
+                "iterations": 1000
+              },
+              "logistic": {
+                "estimate": 0.3372,
+                "low": 0.3304,
+                "high": 0.3496,
+                "iterations": 1000
+              },
+              "majority": {
+                "estimate": 0.3333,
+                "low": 0.3333,
+                "high": 0.3333,
+                "iterations": 1000
+              },
+              "alwaysNeutral": {
+                "estimate": 0.3333,
+                "low": 0.3333,
+                "high": 0.3333,
+                "iterations": 1000
+              },
+              "momentum": {
+                "estimate": 0.3753,
+                "low": 0.3315,
+                "high": 0.4178,
+                "iterations": 1000
+              }
+            },
+            "macroF1Lift": {
+              "handSet-majority": {
+                "estimate": 0.1339,
+                "low": 0.0811,
+                "high": 0.1834,
+                "iterations": 1000
+              },
+              "handSet-alwaysNeutral": {
+                "estimate": 0.1339,
+                "low": 0.0811,
+                "high": 0.1834,
+                "iterations": 1000
+              },
+              "handSet-momentum": {
+                "estimate": 0.054,
+                "low": 0.0047,
+                "high": 0.1054,
+                "iterations": 1000
+              },
+              "logistic-majority": {
+                "estimate": 0.0096,
+                "low": -0.0014,
+                "high": 0.0326,
+                "iterations": 1000
+              },
+              "logistic-alwaysNeutral": {
+                "estimate": 0.0096,
+                "low": -0.0014,
+                "high": 0.0326,
+                "iterations": 1000
+              },
+              "logistic-momentum": {
+                "estimate": -0.0703,
+                "low": -0.1172,
+                "high": -0.0215,
+                "iterations": 1000
+              }
+            },
+            "brierDifferenceVsEmpirical": {
+              "heuristic": {
+                "estimate": 0.4721,
+                "low": 0.4157,
+                "high": 0.5265,
+                "iterations": 1000
+              },
+              "scoreCalibrated": {
+                "estimate": 0.0031,
+                "low": -0.0028,
+                "high": 0.0089,
+                "iterations": 1000
+              },
+              "logistic": {
+                "estimate": -0.0109,
+                "low": -0.0199,
+                "high": -0.0026,
+                "iterations": 1000
+              },
+              "uniform": {
+                "estimate": 0.3145,
+                "low": 0.2775,
+                "high": 0.3512,
+                "iterations": 1000
+              }
+            }
+          },
+          "trading": {
+            "rules": "One decision per non-overlapping window; BULLISH long, BEARISH short, NEUTRAL flat; entry at decision close, exit at target close; 100% equity, compounded; flat round-trip cost.",
+            "strategies": {
+              "handSet": {
+                "windows": 582,
+                "trades": 165,
+                "longs": 46,
+                "shorts": 119,
+                "winRate": 0.4606,
+                "averageWinPct": 0.9553,
+                "averageLossPct": -0.8148,
+                "profitFactor": 1.0012,
+                "compoundedReturnPct": -1.164,
+                "additiveReturnPct": 0.09,
+                "grossCompoundedReturnPct": 37.438,
+                "maxDrawdownPct": 18.812,
+                "perTradeMeanPct": 0.0005,
+                "perTradeStdevPct": 1.2434,
+                "exposure": 0.2835,
+                "turnover": 330,
+                "costPerRoundTripPct": 0.2,
+                "totalCostsPct": 33
+              },
+              "logistic": {
+                "windows": 582,
+                "trades": 3,
+                "longs": 3,
+                "shorts": 0,
+                "winRate": 0.3333,
+                "averageWinPct": 1.0582,
+                "averageLossPct": -0.6,
+                "profitFactor": 0.8819,
+                "compoundedReturnPct": -0.152,
+                "additiveReturnPct": -0.142,
+                "grossCompoundedReturnPct": 0.449,
+                "maxDrawdownPct": 0.912,
+                "perTradeMeanPct": -0.0472,
+                "perTradeStdevPct": 1.0068,
+                "exposure": 0.0052,
+                "turnover": 6,
+                "costPerRoundTripPct": 0.2,
+                "totalCostsPct": 0.6
+              },
+              "momentum": {
+                "windows": 582,
+                "trades": 119,
+                "longs": 63,
+                "shorts": 56,
+                "winRate": 0.4202,
+                "averageWinPct": 0.9475,
+                "averageLossPct": -0.7915,
+                "profitFactor": 0.8675,
+                "compoundedReturnPct": -7.965,
+                "additiveReturnPct": -7.238,
+                "grossCompoundedReturnPct": 16.76,
+                "maxDrawdownPct": 20.244,
+                "perTradeMeanPct": -0.0608,
+                "perTradeStdevPct": 1.3405,
+                "exposure": 0.2045,
+                "turnover": 238,
+                "costPerRoundTripPct": 0.2,
+                "totalCostsPct": 23.8
+              }
+            },
+            "benchmarks": {
+              "noTrade": {
+                "windows": 582,
+                "trades": 0,
+                "longs": 0,
+                "shorts": 0,
+                "winRate": null,
+                "averageWinPct": null,
+                "averageLossPct": null,
+                "profitFactor": null,
+                "compoundedReturnPct": 0,
+                "additiveReturnPct": 0,
+                "grossCompoundedReturnPct": 0,
+                "maxDrawdownPct": 0,
+                "perTradeMeanPct": null,
+                "perTradeStdevPct": null,
+                "exposure": 0,
+                "turnover": 0,
+                "costPerRoundTripPct": 0.2,
+                "totalCostsPct": 0
+              },
+              "alwaysLongSameWindows": {
+                "windows": 582,
+                "trades": 582,
+                "longs": 582,
+                "shorts": 0,
+                "winRate": 0.3557,
+                "averageWinPct": 0.675,
+                "averageLossPct": -0.662,
+                "profitFactor": 0.5628,
+                "compoundedReturnPct": -67.153,
+                "additiveReturnPct": -108.53,
+                "grossCompoundedReturnPct": 5.317,
+                "maxDrawdownPct": 67.153,
+                "perTradeMeanPct": -0.1865,
+                "perTradeStdevPct": 0.9621,
+                "exposure": 1,
+                "turnover": 1164,
+                "costPerRoundTripPct": 0.2,
+                "totalCostsPct": 116.4
+              },
+              "buyAndHoldPct": 5.117
+            },
+            "costSensitivity": [
+              {
+                "costPct": 0,
+                "handSetNetPct": 37.438,
+                "handSetMaxDrawdownPct": 10.719,
+                "momentumNetPct": 16.76
+              },
+              {
+                "costPct": 0.05,
+                "handSetNetPct": 26.572,
+                "handSetMaxDrawdownPct": 12.767,
+                "momentumNetPct": 10.022
+              },
+              {
+                "costPct": 0.1,
+                "handSetNetPct": 16.559,
+                "handSetMaxDrawdownPct": 14.799,
+                "momentumNetPct": 3.669
+              },
+              {
+                "costPct": 0.2,
+                "handSetNetPct": -1.164,
+                "handSetMaxDrawdownPct": 18.812,
+                "momentumNetPct": -7.965
+              },
+              {
+                "costPct": 0.3,
+                "handSetNetPct": -16.207,
+                "handSetMaxDrawdownPct": 25.16,
+                "momentumNetPct": -18.303
+              }
+            ]
+          }
+        }
+      }
+    ],
+    "ablation": [
+      {
+        "removed": "BTC 24h move",
+        "macroF1": 0.3005,
+        "deltaVsFull": -0.0019
+      },
+      {
+        "removed": "ETH 24h move",
+        "macroF1": 0.3004,
+        "deltaVsFull": -0.002
+      },
+      {
+        "removed": "EMA 12/26",
+        "macroF1": 0.2937,
+        "deltaVsFull": -0.0087
+      },
+      {
+        "removed": "RSI",
+        "macroF1": 0.2905,
+        "deltaVsFull": -0.0119
+      },
+      {
+        "removed": "MACD histogram",
+        "macroF1": 0.2893,
+        "deltaVsFull": -0.0131
+      },
+      {
+        "removed": "12h momentum",
+        "macroF1": 0.2971,
+        "deltaVsFull": -0.0053
+      },
+      {
+        "removed": "Top-10 breadth",
+        "macroF1": 0.2731,
+        "deltaVsFull": -0.0293
+      },
+      {
+        "removed": "Fear & Greed",
+        "macroF1": 0.2372,
+        "deltaVsFull": -0.0652
+      },
+      {
+        "removed": "All technical",
+        "macroF1": 0.2613,
+        "deltaVsFull": -0.0411
+      }
+    ],
+    "limitations": [
+      "Replays BTC/ETH/basket hourly candles and the daily Fear & Greed index only; news, spreads, derivatives and market cap have no stored history and are missing (as when a live provider fails).",
+      "24h changes come from hourly closes (the live ticker uses a rolling 24h window).",
+      "Fear & Greed is used from one hour after its 00:00 UTC stamp because its publication time is undocumented.",
+      "Trading: entry at the decision close (no latency), flat 0.20% round-trip cost assumed for spot taker fees plus slippage; no funding or market impact.",
+      "Single asset, single horizon (6 h); results do not generalise to other horizons without re-running."
+    ]
+  }
+}

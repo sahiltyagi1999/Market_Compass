@@ -1,6 +1,10 @@
 import cors from 'cors';
 import express from 'express';
-import { buildDashboard } from './providers.js';
+import { getDashboard, refreshIfStale, snapshotStatus } from './dashboardSchedule.js';
+import { MODEL_VERSION } from './modelConfig.js';
+import { evaluationReport } from './predictionService.js';
+import { getProviderHealth } from './providers.js';
+import { getRepository } from './storage.js';
 
 export const app = express();
 const normalizeOrigin = (origin: string) => origin.trim().replace(/\/+$/, '');
@@ -16,9 +20,34 @@ app.use(cors({
 }));
 app.use(express.json({ limit: '100kb' }));
 
-app.get('/api/health', (_req, res) => {
+const startedAt = Date.now();
+const uptimeSeconds = () => Math.round((Date.now() - startedAt) / 1000);
+
+// Liveness: no I/O, always fast. Use as Render's healthCheckPath.
+app.get('/api/health/live', (_req, res) => {
+  res.set('Cache-Control', 'no-store').json({ ok: true, uptimeSeconds: uptimeSeconds(), time: new Date().toISOString() });
+});
+
+// Keep-alive for an external cron (every 10 min keeps a free Render instance awake).
+// Also restarts a missed 15-minute prediction cycle in the background; never blocks on providers.
+app.get('/api/keepalive', (_req, res) => {
+  const refreshStarted = refreshIfStale();
+  res.set('Cache-Control', 'no-store').json({
+    ok: true,
+    uptimeSeconds: uptimeSeconds(),
+    time: new Date().toISOString(),
+    refreshStarted,
+    snapshot: snapshotStatus()
+  });
+});
+
+app.get('/api/health', async (_req, res) => {
+  const storage = (await getRepository()).info;
   res.json({
     ok: true,
+    modelVersion: MODEL_VERSION,
+    storage,
+    providers: getProviderHealth(),
     hasUpstoxToken: Boolean(process.env.UPSTOX_ANALYTICS_TOKEN || process.env.UPSTOX_ACCESS_TOKEN),
     hasCoinGeckoKey: Boolean(process.env.COINGECKO_DEMO_API_KEY),
     hasOpenAIKey: Boolean(process.env.OPENAI_API_KEY),
@@ -29,7 +58,16 @@ app.get('/api/health', (_req, res) => {
 
 app.get('/api/dashboard', async (_req, res, next) => {
   try {
-    res.json(await buildDashboard());
+    res.json(await getDashboard());
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Forward-outcome evaluation for the current model version (overlap-aware).
+app.get('/api/evaluation', async (_req, res, next) => {
+  try {
+    res.json(await evaluationReport(await getRepository()));
   } catch (error) {
     next(error);
   }
