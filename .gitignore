@@ -7,3 +7,8 @@ dist/
 .DS_Store
 backend/data/*.json
 !backend/data/.gitkeep
+backend/data/history/
+backend/data/backtests/
+backend/data/*.tmp
+backend/data/*.v3-backup
+backend/data/*.corrupt-*

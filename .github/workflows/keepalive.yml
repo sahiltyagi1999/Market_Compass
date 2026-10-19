@@ -1,0 +1,32 @@
+name: Keep Render API awake
+
+# Render free web services sleep after 15 minutes without inbound traffic.
+# Pinging every 10 minutes keeps the 15-minute prediction cycle running.
+# GitHub may delay or skip scheduled runs under load, and disables schedules
+# after 60 days without repository activity; an external cron (e.g. cron-job.org)
+# hitting the same URL is the more reliable primary. See DEPLOYMENT.md.
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    timeout-minutes: 4
+    steps:
+      - name: Ping keep-alive endpoint
+        env:
+          # Repository variable (Settings > Secrets and variables > Actions > Variables), e.g.
+          # https://market-compass-india-api.onrender.com/api/keepalive
+          KEEPALIVE_URL: ${{ vars.KEEPALIVE_URL }}
+        run: |
+          if [ -z "$KEEPALIVE_URL" ]; then
+            echo "::notice::Set the KEEPALIVE_URL repository variable to enable keep-alive pings."
+            exit 0
+          fi
+          # A cold start can take about a minute, so allow retries and a long timeout.
+          curl --fail --silent --show-error --retry 3 --retry-delay 20 --retry-all-errors --max-time 90 "$KEEPALIVE_URL"
+          echo

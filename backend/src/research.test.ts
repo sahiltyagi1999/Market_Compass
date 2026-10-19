@@ -63,7 +63,7 @@ describe('research inputs', () => {
       btcChangePct: 2,
       marketCapChangePct: 1,
       breadthPositiveRatio: 0.7,
-      technical: { rsi: 60, emaFast: 1, emaSlow: 1, emaSpreadPct: 0.5, volatilityPct: 1, candleCount: 80 }
+      technical: { rsi: 60, emaFast: 1, emaSlow: 1, emaSpreadPct: 0.5, volatilityPct: 1, candleCount: 80, sessionCandleCount: 80 }
     })).toBe(60);
     expect(calculateMarketMoodProxy({ btcChangePct: 100 })).toBe(100);
     expect(calculateMarketMoodProxy({})).toBeUndefined();

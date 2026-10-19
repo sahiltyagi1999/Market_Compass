@@ -3,9 +3,14 @@ services:
     name: market-compass-india-api
     runtime: node
     plan: free
+    # Singapore: Binance futures commonly return HTTP 451 to US regions, and it is closer to Upstox.
+    # Region is fixed when the service is created; changing it later means a new service.
+    region: singapore
+    autoDeploy: true
     buildCommand: npm ci && npm run build -w backend
     startCommand: npm run start -w backend
-    healthCheckPath: /api/health
+    # No-I/O liveness endpoint; /api/health also reports storage and provider status.
+    healthCheckPath: /api/health/live
     envVars:
       - key: NODE_VERSION
         value: 22.22.0
@@ -21,3 +26,9 @@ services:
         sync: false
       - key: OPENAI_MODEL
         value: gpt-5-mini
+      - key: COINGECKO_DEMO_API_KEY
+        sync: false
+      # Durable prediction history: any Postgres URL (e.g. a free Neon project).
+      # Without it, history lives in an ephemeral file and resets on restart.
+      - key: DATABASE_URL
+        sync: false

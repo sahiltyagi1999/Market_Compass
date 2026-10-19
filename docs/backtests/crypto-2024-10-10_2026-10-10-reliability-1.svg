@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="804" height="332" viewBox="0 0 804 332" font-family="sans-serif" font-size="11">
+<rect width="100%" height="100%" fill="#ffffff"/><text x="36" y="20" font-size="13" font-weight="bold">CRYPTO untouched test, ±1% (582 windows)</text>
+<rect x="36" y="46" width="220" height="220" fill="none" stroke="#999"/>
+<line x1="36" y1="266" x2="256" y2="46" stroke="#bbb" stroke-dasharray="4 3"/>
+<text x="36" y="40" font-weight="bold">UP</text>
+<text x="146" y="282" text-anchor="middle">forecast probability</text>
+<text x="12" y="156" transform="rotate(-90 12 156)" text-anchor="middle">observed frequency</text>
+<polyline points="43.6,240.3 67.6,253.9 87.0,245.5 111.9,249.7 132.3,260.9 157.0,249.7 177.4,224.1 197.4,244.0 226.9,200.6 234.0,171.7" fill="none" stroke="#2a6f97" stroke-width="1.5"/>
+<circle cx="43.6" cy="240.3" r="6.0" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="67.6" cy="253.9" r="4.7" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="87.0" cy="245.5" r="4.4" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="111.9" cy="249.7" r="3.9" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="132.3" cy="260.9" r="3.7" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="157.0" cy="249.7" r="3.2" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="177.4" cy="224.1" r="3.0" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="197.4" cy="244.0" r="3.3" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="226.9" cy="200.6" r="3.5" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="234.0" cy="171.7" r="2.4" fill="#2a6f97" fill-opacity="0.6"/>
+<polyline points="56.4,249.2 69.3,240.6" fill="none" stroke="#c05621" stroke-width="1.5"/>
+<circle cx="56.4" cy="249.2" r="4.9" fill="#c05621" fill-opacity="0.6"/>
+<circle cx="69.3" cy="240.6" r="6.0" fill="#c05621" fill-opacity="0.6"/>
+<polyline points="55.4,251.8 63.4,239.8 88.9,240.1 111.9,192.7 125.6,46.0" fill="none" stroke="#2f855a" stroke-width="1.5"/>
+<circle cx="55.4" cy="251.8" r="5.6" fill="#2f855a" fill-opacity="0.6"/>
+<circle cx="63.4" cy="239.8" r="6.0" fill="#2f855a" fill-opacity="0.6"/>
+<circle cx="88.9" cy="240.1" r="2.9" fill="#2f855a" fill-opacity="0.6"/>
+<circle cx="111.9" cy="192.7" r="2.3" fill="#2f855a" fill-opacity="0.6"/>
+<circle cx="125.6" cy="46.0" r="1.8" fill="#2f855a" fill-opacity="0.6"/>
+<rect x="292" y="46" width="220" height="220" fill="none" stroke="#999"/>
+<line x1="292" y1="266" x2="512" y2="46" stroke="#bbb" stroke-dasharray="4 3"/>
+<text x="292" y="40" font-weight="bold">NEUTRAL</text>
+<text x="402" y="282" text-anchor="middle">forecast probability</text>
+<polyline points="317.6,119.8 344.8,89.4 367.6,84.7 390.4,72.0 408.3,78.4" fill="none" stroke="#2a6f97" stroke-width="1.5"/>
+<circle cx="317.6" cy="119.8" r="5.8" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="344.8" cy="89.4" r="4.5" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="367.6" cy="84.7" r="4.7" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="390.4" cy="72.0" r="5.5" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="408.3" cy="78.4" r="4.9" fill="#2a6f97" fill-opacity="0.6"/>
+<polyline points="431.9,108.2 456.4,85.6" fill="none" stroke="#c05621" stroke-width="1.5"/>
+<circle cx="431.9" cy="108.2" r="5.4" fill="#c05621" fill-opacity="0.6"/>
+<circle cx="456.4" cy="85.6" r="6.0" fill="#c05621" fill-opacity="0.6"/>
+<polyline points="366.9,156.0 395.1,112.0 416.4,108.9 439.5,130.6 459.7,90.0 472.8,75.0" fill="none" stroke="#2f855a" stroke-width="1.5"/>
+<circle cx="366.9" cy="156.0" r="2.2" fill="#2f855a" fill-opacity="0.6"/>
+<circle cx="395.1" cy="112.0" r="2.6" fill="#2f855a" fill-opacity="0.6"/>
+<circle cx="416.4" cy="108.9" r="2.4" fill="#2f855a" fill-opacity="0.6"/>
+<circle cx="439.5" cy="130.6" r="3.9" fill="#2f855a" fill-opacity="0.6"/>
+<circle cx="459.7" cy="90.0" r="6.0" fill="#2f855a" fill-opacity="0.6"/>
+<circle cx="472.8" cy="75.0" r="5.5" fill="#2f855a" fill-opacity="0.6"/>
+<rect x="548" y="46" width="220" height="220" fill="none" stroke="#999"/>
+<line x1="548" y1="266" x2="768" y2="46" stroke="#bbb" stroke-dasharray="4 3"/>
+<text x="548" y="40" font-weight="bold">DOWN</text>
+<text x="658" y="282" text-anchor="middle">forecast probability</text>
+<polyline points="557.2,238.3 581.0,259.9 598.8,251.3 624.1,247.1 644.5,238.5 669.5,243.4 688.1,249.7 712.8,248.6 739.8,229.0 746.0,250.3" fill="none" stroke="#2a6f97" stroke-width="1.5"/>
+<circle cx="557.2" cy="238.3" r="5.0" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="581.0" cy="259.9" r="5.0" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="598.8" cy="251.3" r="4.4" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="624.1" cy="247.1" r="3.5" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="644.5" cy="238.5" r="3.6" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="669.5" cy="243.4" r="3.6" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="688.1" cy="249.7" r="3.2" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="712.8" cy="248.6" r="3.6" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="739.8" cy="229.0" r="4.7" fill="#2a6f97" fill-opacity="0.6"/>
+<circle cx="746.0" cy="250.3" r="2.7" fill="#2a6f97" fill-opacity="0.6"/>
+<polyline points="578.5,244.8" fill="none" stroke="#c05621" stroke-width="1.5"/>
+<circle cx="578.5" cy="244.8" r="6.0" fill="#c05621" fill-opacity="0.6"/>
+<polyline points="567.6,254.3 575.3,241.4 601.2,255.5" fill="none" stroke="#2f855a" stroke-width="1.5"/>
+<circle cx="567.6" cy="254.3" r="5.3" fill="#2f855a" fill-opacity="0.6"/>
+<circle cx="575.3" cy="241.4" r="6.0" fill="#2f855a" fill-opacity="0.6"/>
+<circle cx="601.2" cy="255.5" r="3.0" fill="#2f855a" fill-opacity="0.6"/>
+<rect x="36" y="314" width="10" height="10" fill="#2a6f97"/><text x="50" y="323">heuristic</text>
+<rect x="176" y="314" width="10" height="10" fill="#c05621"/><text x="190" y="323">scoreCalibrated</text>
+<rect x="316" y="314" width="10" height="10" fill="#2f855a"/><text x="330" y="323">logistic</text>
+</svg>
